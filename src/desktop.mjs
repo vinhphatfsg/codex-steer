@@ -130,6 +130,7 @@ export function buildSendPlan(threadId, message, waitMs = 1500, desktopSettings 
     thread_id: threadId,
     deep_link: threadDeepLink(threadId),
     backend: "desktop-ui",
+    delivery_strategy: "global-paste",
     wait_ms: waitMs,
     follow_up_mode: desktopSettings.follow_up_mode,
     composer_enter_behavior: desktopSettings.composer_enter_behavior,
@@ -147,21 +148,15 @@ export function sendDesktopMessage(threadId, message, { dryRun = false, waitMs =
   if (dryRun) return { ...plan, dry_run: true, sent: false };
 
   requireReadyDesktop();
-  const accessibilityMode = enableDesktopAccessibility();
-  let result;
-  try {
-    openDesktopThread(threadId, { focusComposer: true });
-    result = run(OSASCRIPT, [SEND_SCRIPT, String(waitMs), desktopSettings.submit_shortcut], {
-      env: { ...process.env, CODEX_STEER_MESSAGE: message },
-      timeout: waitMs + 15000,
-    });
-  } finally {
-    restoreDesktopAccessibility(accessibilityMode);
-  }
+  openDesktopThread(threadId, { focusComposer: true });
+  const result = run(OSASCRIPT, [SEND_SCRIPT, String(waitMs), desktopSettings.submit_shortcut], {
+    env: { ...process.env, CODEX_STEER_MESSAGE: message },
+    timeout: waitMs + 15000,
+  });
   if (result.error) throw result.error;
   if (result.status !== 0) {
     throw new Error(result.stderr.trim() || "Codex Desktop did not accept the steering message.");
   }
 
-  return { ...plan, accessibility_mode: accessibilityMode, dry_run: false, sent: true };
+  return { ...plan, dry_run: false, sent: true };
 }

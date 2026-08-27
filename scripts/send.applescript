@@ -17,34 +17,6 @@ on run argv
     tell appProcess
       set frontmost to true
       if not (exists front window) then error "Codex Desktop has no front window." number 69
-
-      set targetElement to missing value
-      try
-        set focusedElement to value of attribute "AXFocusedUIElement"
-        set focusedRole to role of focusedElement
-        if focusedRole is "AXTextArea" or focusedRole is "AXTextField" then set targetElement to focusedElement
-      end try
-
-      if targetElement is missing value then
-        set targetY to -1
-        set windowContents to entire contents of front window
-        repeat with candidate in windowContents
-          try
-            set candidateRole to role of candidate
-            if (candidateRole is "AXTextArea" or candidateRole is "AXTextField") and (enabled of candidate is true) then
-              set candidatePosition to position of candidate
-              set candidateY to item 2 of candidatePosition
-              if candidateY > targetY then
-                set targetY to candidateY
-                set targetElement to candidate
-              end if
-            end if
-          end try
-        end repeat
-      end if
-
-      if targetElement is missing value then error "Codex accessibility tree contains no text editor. Run codex-steer debug-ui <thread-id>." number 69
-      set focused of targetElement to true
     end tell
   end tell
 
@@ -53,7 +25,7 @@ on run argv
     set the clipboard to messageText
     tell application "System Events"
       keystroke "v" using {command down}
-      delay 0.15
+      delay 0.3
       if submitShortcut is "command" then
         key code 36 using {command down}
       else if submitShortcut is "command-shift" then

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import os from "node:os";
@@ -16,3 +17,10 @@ for (const scriptName of ["accessibility.applescript", "send.applescript", "insp
     assert.equal(result.status, 0, result.stderr);
   });
 }
+
+test("send uses Codex global paste without requiring an AX text editor", () => {
+  const source = fileURLToPath(new URL("../scripts/send.applescript", import.meta.url));
+  const script = readFileSync(source, "utf8");
+  assert.match(script, /keystroke "v" using \{command down\}/u);
+  assert.doesNotMatch(script, /AXTextArea|AXTextField/u);
+});
