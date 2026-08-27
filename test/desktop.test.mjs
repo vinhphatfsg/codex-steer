@@ -14,8 +14,30 @@ test("builds a redacted send plan", () => {
   assert.equal(plan.wait_ms, 2000);
   assert.equal(plan.message_characters, 7);
   assert.equal(plan.delivery_strategy, "global-paste");
+  assert.equal(plan.delivery_action, "steer");
   assert.equal(plan.submit_shortcut, "command");
   assert.equal("message" in plan, false);
+});
+
+test("uses a normal submission shortcut for a stopped thread", () => {
+  const settings = {
+    follow_up_mode: "queue",
+    composer_enter_behavior: "enter",
+    submit_shortcut: "command",
+  };
+  const plan = buildSendPlan(THREAD_ID, "通常送信", 1500, settings, { newTurn: true });
+  assert.equal(plan.delivery_action, "new-turn");
+  assert.equal(plan.submit_shortcut, "plain");
+});
+
+test("respects command-based new-turn submission settings", () => {
+  const settings = {
+    follow_up_mode: "queue",
+    composer_enter_behavior: "cmdAlways",
+    submit_shortcut: "command-shift",
+  };
+  const plan = buildSendPlan(THREAD_ID, "通常送信", 1500, settings, { newTurn: true });
+  assert.equal(plan.submit_shortcut, "command");
 });
 
 test("dry run does not touch the desktop", () => {

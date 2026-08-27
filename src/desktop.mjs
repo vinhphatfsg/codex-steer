@@ -125,31 +125,47 @@ export function inspectDesktopUi(threadId, { waitMs = 1500 } = {}) {
   };
 }
 
-export function buildSendPlan(threadId, message, waitMs = 1500, desktopSettings = readDesktopSettings()) {
+function newTurnShortcut(message, composerEnterBehavior) {
+  if (composerEnterBehavior === "cmdAlways") return "command";
+  if (composerEnterBehavior === "cmdIfMultiline" && message.includes("\n")) return "command";
+  return "plain";
+}
+
+export function buildSendPlan(
+  threadId,
+  message,
+  waitMs = 1500,
+  desktopSettings = readDesktopSettings(),
+  { newTurn = false } = {},
+) {
+  const submitShortcut = newTurn
+    ? newTurnShortcut(message, desktopSettings.composer_enter_behavior)
+    : desktopSettings.submit_shortcut;
   return {
     thread_id: threadId,
     deep_link: threadDeepLink(threadId),
     backend: "desktop-ui",
     delivery_strategy: "global-paste",
+    delivery_action: newTurn ? "new-turn" : "steer",
     wait_ms: waitMs,
     follow_up_mode: desktopSettings.follow_up_mode,
     composer_enter_behavior: desktopSettings.composer_enter_behavior,
-    submit_shortcut: desktopSettings.submit_shortcut,
+    submit_shortcut: submitShortcut,
     message_characters: [...message].length,
   };
 }
 
-export function sendDesktopMessage(threadId, message, { dryRun = false, waitMs = 1500 } = {}) {
+export function sendDesktopMessage(threadId, message, { dryRun = false, waitMs = 1500, newTurn = false } = {}) {
   if (message.trim() === "") throw new Error("Message must not be empty.");
   validateWaitMs(waitMs);
 
   const desktopSettings = readDesktopSettings();
-  const plan = buildSendPlan(threadId, message, waitMs, desktopSettings);
+  const plan = buildSendPlan(threadId, message, waitMs, desktopSettings, { newTurn });
   if (dryRun) return { ...plan, dry_run: true, sent: false };
 
   requireReadyDesktop();
   openDesktopThread(threadId, { focusComposer: true });
-  const result = run(OSASCRIPT, [SEND_SCRIPT, String(waitMs), desktopSettings.submit_shortcut], {
+  const result = run(OSASCRIPT, [SEND_SCRIPT, String(waitMs), plan.submit_shortcut], {
     env: { ...process.env, CODEX_STEER_MESSAGE: message },
     timeout: waitMs + 15000,
   });
