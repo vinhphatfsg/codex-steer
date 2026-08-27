@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-for (const scriptName of ["send.applescript", "inspect.applescript"]) {
+for (const scriptName of ["accessibility.applescript", "send.applescript", "inspect.applescript"]) {
   test(`${scriptName} compiles`, { skip: process.platform !== "darwin" }, async () => {
     const output = await mkdtemp(path.join(os.tmpdir(), "codex-steer-script-"));
     const source = fileURLToPath(new URL(`../scripts/${scriptName}`, import.meta.url));

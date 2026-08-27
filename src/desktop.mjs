@@ -10,6 +10,7 @@ const OPEN = "/usr/bin/open";
 const OSASCRIPT = "/usr/bin/osascript";
 const SEND_SCRIPT = fileURLToPath(new URL("../scripts/send.applescript", import.meta.url));
 const INSPECT_SCRIPT = fileURLToPath(new URL("../scripts/inspect.applescript", import.meta.url));
+const ACCESSIBILITY_SCRIPT = fileURLToPath(new URL("../scripts/accessibility.applescript", import.meta.url));
 
 function run(command, args, options = {}) {
   return spawnSync(command, args, {
@@ -28,6 +29,7 @@ export function desktopDoctor() {
     osascript_command: existsSync(OSASCRIPT),
     send_script: existsSync(SEND_SCRIPT),
     inspect_script: existsSync(INSPECT_SCRIPT),
+    accessibility_script: existsSync(ACCESSIBILITY_SCRIPT),
     accessibility: false,
   };
 
@@ -80,13 +82,37 @@ function requireReadyDesktop() {
   throw new Error(`Desktop backend is not ready: ${missing}. ${doctor.remediation ?? ""}`.trim());
 }
 
+function enableDesktopAccessibility() {
+  const result = run(OSASCRIPT, [ACCESSIBILITY_SCRIPT, "enable"], { timeout: 5000 });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(result.stderr.trim() || "Could not enable the Codex accessibility tree.");
+  }
+  return result.stdout.trim() || "unchanged";
+}
+
+function restoreDesktopAccessibility(mode) {
+  if (mode !== "manual" && mode !== "enhanced") return;
+  const result = run(OSASCRIPT, [ACCESSIBILITY_SCRIPT, "restore", mode], { timeout: 5000 });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(result.stderr.trim() || "Could not restore the Codex accessibility state.");
+  }
+}
+
 export function inspectDesktopUi(threadId, { waitMs = 1500 } = {}) {
   validateWaitMs(waitMs);
   requireReadyDesktop();
-  openDesktopThread(threadId, { focusComposer: true });
-  const result = run(OSASCRIPT, [INSPECT_SCRIPT, String(waitMs)], {
-    timeout: waitMs + 15000,
-  });
+  const accessibilityMode = enableDesktopAccessibility();
+  let result;
+  try {
+    openDesktopThread(threadId, { focusComposer: true });
+    result = run(OSASCRIPT, [INSPECT_SCRIPT, String(waitMs)], {
+      timeout: waitMs + 15000,
+    });
+  } finally {
+    restoreDesktopAccessibility(accessibilityMode);
+  }
   if (result.error) throw result.error;
   if (result.status !== 0) {
     throw new Error(result.stderr.trim() || "Could not inspect the Codex Desktop UI.");
@@ -94,6 +120,7 @@ export function inspectDesktopUi(threadId, { waitMs = 1500 } = {}) {
   return {
     thread_id: threadId,
     backend: "desktop-ui",
+    accessibility_mode: accessibilityMode,
     diagnostic: result.stdout.trim(),
   };
 }
@@ -120,15 +147,21 @@ export function sendDesktopMessage(threadId, message, { dryRun = false, waitMs =
   if (dryRun) return { ...plan, dry_run: true, sent: false };
 
   requireReadyDesktop();
-  openDesktopThread(threadId, { focusComposer: true });
-  const result = run(OSASCRIPT, [SEND_SCRIPT, String(waitMs), desktopSettings.submit_shortcut], {
-    env: { ...process.env, CODEX_STEER_MESSAGE: message },
-    timeout: waitMs + 15000,
-  });
+  const accessibilityMode = enableDesktopAccessibility();
+  let result;
+  try {
+    openDesktopThread(threadId, { focusComposer: true });
+    result = run(OSASCRIPT, [SEND_SCRIPT, String(waitMs), desktopSettings.submit_shortcut], {
+      env: { ...process.env, CODEX_STEER_MESSAGE: message },
+      timeout: waitMs + 15000,
+    });
+  } finally {
+    restoreDesktopAccessibility(accessibilityMode);
+  }
   if (result.error) throw result.error;
   if (result.status !== 0) {
     throw new Error(result.stderr.trim() || "Codex Desktop did not accept the steering message.");
   }
 
-  return { ...plan, dry_run: false, sent: true };
+  return { ...plan, accessibility_mode: accessibilityMode, dry_run: false, sent: true };
 }
