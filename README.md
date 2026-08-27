@@ -13,7 +13,7 @@ codex-steer 01a04373-3770-71e0-a2e3-a3c196f5f5b1 \
 
 OpenAIの公開App Server APIには、実行中ターンへ追加入力する [`turn/steer`](https://learn.chatgpt.com/docs/app-server#steer-an-active-turn) があります。しかし現在のCodexデスクトップはApp Serverを標準入出力で保持しており、外部プロセスが既存の実行中ターンへ接続する公開ソケットはありません。
 
-このCLIは公開された [`codex://threads/<thread-id>`](https://learn.chatgpt.com/docs/reference/commands#chats) で対象タスクを開き、Codex本体が持つグローバルpaste転送機能を通してメッセージをコンポーザーへ貼り付けます。macOS Accessibilityに入力欄が公開されていなくても動作します。`~/.codex/config.toml` の追加入力モードも読み取り、通常送信がキューになる設定では、その1通だけをステアリングにするCodex標準ショートカットを自動で使います。ユーザー設定は変更しません。Codex内部の認証済みMCPパイプには接続しません。
+このCLIは公開された [`codex://threads/<thread-id>`](https://learn.chatgpt.com/docs/reference/commands#chats) の `prompt` パラメータで対象タスクを開きます。Codex本体がメッセージをメインチャットのコンポーザーへ設定してフォーカスするため、ターミナルやファイル編集欄へ誤って貼り付けません。macOS Accessibilityに入力欄が公開されていなくても動作します。`~/.codex/config.toml` の追加入力モードも読み取り、通常送信がキューになる設定では、その1通だけをステアリングにするCodex標準ショートカットを自動で使います。ユーザー設定は変更しません。Codex内部の認証済みMCPパイプには接続しません。
 
 制約:
 

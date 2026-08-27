@@ -13,7 +13,7 @@ test("builds a redacted send plan", () => {
   assert.equal(plan.thread_id, THREAD_ID);
   assert.equal(plan.wait_ms, 2000);
   assert.equal(plan.message_characters, 7);
-  assert.equal(plan.delivery_strategy, "global-paste");
+  assert.equal(plan.delivery_strategy, "deep-link-prefill");
   assert.equal(plan.delivery_action, "steer");
   assert.equal(plan.submit_shortcut, "command");
   assert.equal("message" in plan, false);

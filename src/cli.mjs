@@ -3,7 +3,7 @@ import { desktopDoctor, inspectDesktopUi, openDesktopThread, sendDesktopMessage 
 import { normalizeThreadId, threadDeepLink } from "./thread-id.mjs";
 import { listLocalThreads } from "./thread-store.mjs";
 
-const VERSION = "0.5.1";
+const VERSION = "0.6.0";
 
 const HELP = `codex-steer ${VERSION}
 

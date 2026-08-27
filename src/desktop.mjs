@@ -52,8 +52,8 @@ export function desktopDoctor() {
   };
 }
 
-export function openDesktopThread(threadId, { focusComposer = false } = {}) {
-  const deepLink = focusComposer ? threadComposerDeepLink(threadId) : threadDeepLink(threadId);
+export function openDesktopThread(threadId, { focusComposer = false, prompt } = {}) {
+  const deepLink = focusComposer ? threadComposerDeepLink(threadId, prompt) : threadDeepLink(threadId);
   const result = run(OPEN, ["-b", APP_BUNDLE_ID, deepLink]);
   if (result.status !== 0) {
     throw new Error(result.stderr.trim() || `Failed to open ${deepLink}`);
@@ -145,7 +145,7 @@ export function buildSendPlan(
     thread_id: threadId,
     deep_link: threadDeepLink(threadId),
     backend: "desktop-ui",
-    delivery_strategy: "global-paste",
+    delivery_strategy: "deep-link-prefill",
     delivery_action: newTurn ? "new-turn" : "steer",
     wait_ms: waitMs,
     follow_up_mode: desktopSettings.follow_up_mode,
@@ -164,8 +164,8 @@ export function sendDesktopMessage(threadId, message, { dryRun = false, waitMs =
   if (dryRun) return { ...plan, dry_run: true, sent: false };
 
   requireReadyDesktop();
-  openDesktopThread(threadId, { focusComposer: true });
-  const result = run(OSASCRIPT, [SEND_SCRIPT, String(waitMs), plan.submit_shortcut, message], {
+  openDesktopThread(threadId, { focusComposer: true, prompt: message });
+  const result = run(OSASCRIPT, [SEND_SCRIPT, String(waitMs), plan.submit_shortcut], {
     timeout: waitMs + 15000,
   });
   if (result.error) throw result.error;

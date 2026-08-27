@@ -29,6 +29,7 @@ export function threadDeepLink(threadId) {
   return `codex://threads/${normalizeThreadId(threadId)}`;
 }
 
-export function threadComposerDeepLink(threadId) {
-  return `${threadDeepLink(threadId)}?prompt=`;
+export function threadComposerDeepLink(threadId, prompt = "") {
+  const query = new URLSearchParams({ prompt });
+  return `${threadDeepLink(threadId)}?${query}`;
 }

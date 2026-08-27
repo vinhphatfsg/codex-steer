@@ -18,17 +18,10 @@ for (const scriptName of ["accessibility.applescript", "send.applescript", "insp
   });
 }
 
-test("send uses Codex global paste without requiring an AX text editor", () => {
+test("send submits a deep-link-prefilled composer without global paste", () => {
   const source = fileURLToPath(new URL("../scripts/send.applescript", import.meta.url));
   const script = readFileSync(source, "utf8");
-  assert.match(script, /keystroke "v" using \{command down\}/u);
+  assert.match(script, /key code 36/u);
+  assert.doesNotMatch(script, /keystroke "v"|clipboard/u);
   assert.doesNotMatch(script, /AXTextArea|AXTextField/u);
-});
-
-test("send preserves the clipboard with classic AppleScript semantics", () => {
-  const source = fileURLToPath(new URL("../scripts/send.applescript", import.meta.url));
-  const script = readFileSync(source, "utf8");
-  assert.match(script, /set messageText to item 3 of argv/u);
-  assert.match(script, /set oldClipboard to the clipboard as record/u);
-  assert.doesNotMatch(script, /use framework/u);
 });

@@ -24,3 +24,8 @@ test("builds a deep link", () => {
 test("builds a composer-focusing deep link", () => {
   assert.equal(threadComposerDeepLink(THREAD_ID), `codex://threads/${THREAD_ID}?prompt=`);
 });
+
+test("encodes a prompt in the composer deep link", () => {
+  const link = new URL(threadComposerDeepLink(THREAD_ID, "日本語の指示\n次の行"));
+  assert.equal(link.searchParams.get("prompt"), "日本語の指示\n次の行");
+});
