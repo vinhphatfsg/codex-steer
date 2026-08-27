@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
-import { desktopDoctor, openDesktopThread, sendDesktopMessage } from "./desktop.mjs";
+import { desktopDoctor, inspectDesktopUi, openDesktopThread, sendDesktopMessage } from "./desktop.mjs";
 import { normalizeThreadId, threadDeepLink } from "./thread-id.mjs";
 import { listLocalThreads } from "./thread-store.mjs";
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 
 const HELP = `codex-steer ${VERSION}
 
@@ -14,6 +14,7 @@ Usage:
   codex-steer threads list [--limit N] [--desktop-only] [--json]
   codex-steer thread resolve <UUID|codex://threads/...> [--json]
   codex-steer open <THREAD> [--json]
+  codex-steer debug-ui <THREAD> [--wait-ms N] [--json]
   codex-steer send <THREAD> <MESSAGE...> [--dry-run] [--wait-ms N] [--json]
   codex-steer <THREAD> <MESSAGE...> [--dry-run] [--wait-ms N] [--json]
 
@@ -124,6 +125,16 @@ export async function main(argv) {
       const data = openDesktopThread(threadId);
       success("open", data, json);
       if (!json) console.log(`Opened ${data.deep_link}`);
+      return;
+    }
+
+    if (command === "debug-ui") {
+      const waitMs = Number.parseInt(takeOption(args, "--wait-ms", "1500"), 10);
+      if (args.length !== 1) throw new Error("debug-ui requires exactly one thread ID or URL.");
+      const threadId = normalizeThreadId(args[0]);
+      const data = inspectDesktopUi(threadId, { waitMs });
+      success("debug-ui", data, json);
+      if (!json) console.log(data.diagnostic);
       return;
     }
 

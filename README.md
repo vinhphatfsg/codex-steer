@@ -13,7 +13,7 @@ codex-steer 01a04373-3770-71e0-a2e3-a3c196f5f5b1 \
 
 OpenAIの公開App Server APIには、実行中ターンへ追加入力する [`turn/steer`](https://learn.chatgpt.com/docs/app-server#steer-an-active-turn) があります。しかし現在のCodexデスクトップはApp Serverを標準入出力で保持しており、外部プロセスが既存の実行中ターンへ接続する公開ソケットはありません。
 
-このCLIは公開された [`codex://threads/<thread-id>`](https://learn.chatgpt.com/docs/reference/commands#chats) で対象タスクを開き、macOS Accessibilityでメッセージコンポーザーへ貼り付けます。`~/.codex/config.toml` の追加入力モードも読み取り、通常送信がキューになる設定では、その1通だけをステアリングにするCodex標準ショートカットを自動で使います。ユーザー設定は変更しません。Codex内部の認証済みMCPパイプには接続しません。
+このCLIは公開された [`codex://threads/<thread-id>`](https://learn.chatgpt.com/docs/reference/commands#chats) で対象タスクを開き、Codex本体のdeep linkフォーカス機能とmacOS Accessibilityでメッセージコンポーザーへ貼り付けます。`~/.codex/config.toml` の追加入力モードも読み取り、通常送信がキューになる設定では、その1通だけをステアリングにするCodex標準ショートカットを自動で使います。ユーザー設定は変更しません。Codex内部の認証済みMCPパイプには接続しません。
 
 制約:
 
@@ -45,6 +45,12 @@ export PATH="$HOME/.local/bin:$PATH"
 ```bash
 codex-steer doctor
 codex-steer --json doctor
+```
+
+入力欄のフォーカス状態を診断:
+
+```bash
+codex-steer debug-ui <thread-id> --wait-ms 3000
 ```
 
 最近のローカルタスクを列挙:

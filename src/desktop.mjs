@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { threadDeepLink } from "./thread-id.mjs";
+import { threadComposerDeepLink, threadDeepLink } from "./thread-id.mjs";
 import { readDesktopSettings } from "./settings.mjs";
 
 const APP_PATH = "/Applications/ChatGPT.app";
@@ -9,6 +9,7 @@ const APP_BUNDLE_ID = "com.openai.codex";
 const OPEN = "/usr/bin/open";
 const OSASCRIPT = "/usr/bin/osascript";
 const SEND_SCRIPT = fileURLToPath(new URL("../scripts/send.applescript", import.meta.url));
+const INSPECT_SCRIPT = fileURLToPath(new URL("../scripts/inspect.applescript", import.meta.url));
 
 function run(command, args, options = {}) {
   return spawnSync(command, args, {
@@ -26,6 +27,7 @@ export function desktopDoctor() {
     open_command: existsSync(OPEN),
     osascript_command: existsSync(OSASCRIPT),
     send_script: existsSync(SEND_SCRIPT),
+    inspect_script: existsSync(INSPECT_SCRIPT),
     accessibility: false,
   };
 
@@ -48,13 +50,52 @@ export function desktopDoctor() {
   };
 }
 
-export function openDesktopThread(threadId) {
-  const deepLink = threadDeepLink(threadId);
+export function openDesktopThread(threadId, { focusComposer = false } = {}) {
+  const deepLink = focusComposer ? threadComposerDeepLink(threadId) : threadDeepLink(threadId);
   const result = run(OPEN, ["-b", APP_BUNDLE_ID, deepLink]);
   if (result.status !== 0) {
     throw new Error(result.stderr.trim() || `Failed to open ${deepLink}`);
   }
-  return { thread_id: threadId, deep_link: deepLink, backend: "desktop-ui" };
+  return {
+    thread_id: threadId,
+    deep_link: threadDeepLink(threadId),
+    backend: "desktop-ui",
+    focus_composer: focusComposer,
+  };
+}
+
+function validateWaitMs(waitMs) {
+  if (!Number.isInteger(waitMs) || waitMs < 0 || waitMs > 30000) {
+    throw new Error("--wait-ms must be an integer between 0 and 30000.");
+  }
+}
+
+function requireReadyDesktop() {
+  const doctor = desktopDoctor();
+  if (doctor.ready) return;
+  const missing = Object.entries(doctor.checks)
+    .filter(([, ok]) => !ok)
+    .map(([name]) => name)
+    .join(", ");
+  throw new Error(`Desktop backend is not ready: ${missing}. ${doctor.remediation ?? ""}`.trim());
+}
+
+export function inspectDesktopUi(threadId, { waitMs = 1500 } = {}) {
+  validateWaitMs(waitMs);
+  requireReadyDesktop();
+  openDesktopThread(threadId, { focusComposer: true });
+  const result = run(OSASCRIPT, [INSPECT_SCRIPT, String(waitMs)], {
+    timeout: waitMs + 15000,
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(result.stderr.trim() || "Could not inspect the Codex Desktop UI.");
+  }
+  return {
+    thread_id: threadId,
+    backend: "desktop-ui",
+    diagnostic: result.stdout.trim(),
+  };
 }
 
 export function buildSendPlan(threadId, message, waitMs = 1500, desktopSettings = readDesktopSettings()) {
@@ -72,24 +113,14 @@ export function buildSendPlan(threadId, message, waitMs = 1500, desktopSettings 
 
 export function sendDesktopMessage(threadId, message, { dryRun = false, waitMs = 1500 } = {}) {
   if (message.trim() === "") throw new Error("Message must not be empty.");
-  if (!Number.isInteger(waitMs) || waitMs < 0 || waitMs > 30000) {
-    throw new Error("--wait-ms must be an integer between 0 and 30000.");
-  }
+  validateWaitMs(waitMs);
 
   const desktopSettings = readDesktopSettings();
   const plan = buildSendPlan(threadId, message, waitMs, desktopSettings);
   if (dryRun) return { ...plan, dry_run: true, sent: false };
 
-  const doctor = desktopDoctor();
-  if (!doctor.ready) {
-    const missing = Object.entries(doctor.checks)
-      .filter(([, ok]) => !ok)
-      .map(([name]) => name)
-      .join(", ");
-    throw new Error(`Desktop backend is not ready: ${missing}. ${doctor.remediation ?? ""}`.trim());
-  }
-
-  openDesktopThread(threadId);
+  requireReadyDesktop();
+  openDesktopThread(threadId, { focusComposer: true });
   const result = run(OSASCRIPT, [SEND_SCRIPT, String(waitMs), desktopSettings.submit_shortcut], {
     env: { ...process.env, CODEX_STEER_MESSAGE: message },
     timeout: waitMs + 15000,

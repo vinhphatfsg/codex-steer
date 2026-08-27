@@ -28,3 +28,7 @@ export function normalizeThreadId(input) {
 export function threadDeepLink(threadId) {
   return `codex://threads/${normalizeThreadId(threadId)}`;
 }
+
+export function threadComposerDeepLink(threadId) {
+  return `${threadDeepLink(threadId)}?prompt=`;
+}

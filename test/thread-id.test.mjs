@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeThreadId, threadDeepLink } from "../src/thread-id.mjs";
+import { normalizeThreadId, threadComposerDeepLink, threadDeepLink } from "../src/thread-id.mjs";
 
 const THREAD_ID = "01a04373-3770-71e0-a2e3-a3c196f5f5b1";
 
@@ -19,4 +19,8 @@ test("rejects unrelated URLs and invalid IDs", () => {
 
 test("builds a deep link", () => {
   assert.equal(threadDeepLink(THREAD_ID), `codex://threads/${THREAD_ID}`);
+});
+
+test("builds a composer-focusing deep link", () => {
+  assert.equal(threadComposerDeepLink(THREAD_ID), `codex://threads/${THREAD_ID}?prompt=`);
 });
