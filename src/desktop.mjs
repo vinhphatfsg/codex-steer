@@ -165,8 +165,7 @@ export function sendDesktopMessage(threadId, message, { dryRun = false, waitMs =
 
   requireReadyDesktop();
   openDesktopThread(threadId, { focusComposer: true });
-  const result = run(OSASCRIPT, [SEND_SCRIPT, String(waitMs), plan.submit_shortcut], {
-    env: { ...process.env, CODEX_STEER_MESSAGE: message },
+  const result = run(OSASCRIPT, [SEND_SCRIPT, String(waitMs), plan.submit_shortcut, message], {
     timeout: waitMs + 15000,
   });
   if (result.error) throw result.error;

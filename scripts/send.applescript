@@ -1,10 +1,8 @@
-use framework "Foundation"
-
 on run argv
-  if (count of argv) is not 2 then error "Expected wait time and submit shortcut." number 64
+  if (count of argv) is not 3 then error "Expected wait time, submit shortcut, and message." number 64
 
-  set messageText to (current application's NSProcessInfo's processInfo()'s environment()'s objectForKey:"CODEX_STEER_MESSAGE") as text
-  if messageText is "" then error "CODEX_STEER_MESSAGE is empty." number 64
+  set messageText to item 3 of argv
+  if messageText is "" then error "Message is empty." number 64
   set waitSeconds to ((item 1 of argv) as integer) / 1000
   set submitShortcut to item 2 of argv
   if submitShortcut is not "plain" and submitShortcut is not "command" and submitShortcut is not "command-shift" then error "Invalid submit shortcut." number 64
