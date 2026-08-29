@@ -52,9 +52,13 @@ export function desktopDoctor() {
   };
 }
 
-export function openDesktopThread(threadId, { focusComposer = false, prompt } = {}) {
+export function buildOpenArgs(deepLink, { background = false } = {}) {
+  return [...(background ? ["-g"] : []), "-b", APP_BUNDLE_ID, deepLink];
+}
+
+export function openDesktopThread(threadId, { focusComposer = false, prompt, background = false } = {}) {
   const deepLink = focusComposer ? threadComposerDeepLink(threadId, prompt) : threadDeepLink(threadId);
-  const result = run(OPEN, ["-b", APP_BUNDLE_ID, deepLink]);
+  const result = run(OPEN, buildOpenArgs(deepLink, { background }));
   if (result.status !== 0) {
     throw new Error(result.stderr.trim() || `Failed to open ${deepLink}`);
   }
@@ -63,6 +67,7 @@ export function openDesktopThread(threadId, { focusComposer = false, prompt } = 
     deep_link: threadDeepLink(threadId),
     backend: "desktop-ui",
     focus_composer: focusComposer,
+    background,
   };
 }
 
@@ -80,6 +85,19 @@ function requireReadyDesktop() {
     .map(([name]) => name)
     .join(", ");
   throw new Error(`Desktop backend is not ready: ${missing}. ${doctor.remediation ?? ""}`.trim());
+}
+
+function frontmostProcessId() {
+  const result = run(OSASCRIPT, [
+    "-e",
+    'tell application "System Events" to return unix id of first application process whose frontmost is true',
+  ], { timeout: 3000 });
+  if (result.error) throw result.error;
+  const processId = Number.parseInt(result.stdout.trim(), 10);
+  if (result.status !== 0 || !Number.isInteger(processId) || processId < 1) {
+    throw new Error(result.stderr.trim() || "Could not identify the previously focused application.");
+  }
+  return processId;
 }
 
 function enableDesktopAccessibility() {
@@ -136,7 +154,7 @@ export function buildSendPlan(
   message,
   waitMs = 1500,
   desktopSettings = readDesktopSettings(),
-  { newTurn = false } = {},
+  { newTurn = false, keepFocus = false } = {},
 ) {
   const submitShortcut = newTurn
     ? newTurnShortcut(message, desktopSettings.composer_enter_behavior)
@@ -147,6 +165,7 @@ export function buildSendPlan(
     backend: "desktop-ui",
     delivery_strategy: "deep-link-prefill",
     delivery_action: newTurn ? "new-turn" : "steer",
+    focus_policy: keepFocus ? "keep-codex-focused" : "restore-previous-app",
     wait_ms: waitMs,
     follow_up_mode: desktopSettings.follow_up_mode,
     composer_enter_behavior: desktopSettings.composer_enter_behavior,
@@ -155,17 +174,28 @@ export function buildSendPlan(
   };
 }
 
-export function sendDesktopMessage(threadId, message, { dryRun = false, waitMs = 1500, newTurn = false } = {}) {
+export function sendDesktopMessage(
+  threadId,
+  message,
+  { dryRun = false, waitMs = 1500, newTurn = false, keepFocus = false } = {},
+) {
   if (message.trim() === "") throw new Error("Message must not be empty.");
   validateWaitMs(waitMs);
 
   const desktopSettings = readDesktopSettings();
-  const plan = buildSendPlan(threadId, message, waitMs, desktopSettings, { newTurn });
+  const plan = buildSendPlan(threadId, message, waitMs, desktopSettings, { newTurn, keepFocus });
   if (dryRun) return { ...plan, dry_run: true, sent: false };
 
   requireReadyDesktop();
-  openDesktopThread(threadId, { focusComposer: true, prompt: message });
-  const result = run(OSASCRIPT, [SEND_SCRIPT, String(waitMs), plan.submit_shortcut], {
+  const previousProcessId = keepFocus ? 0 : frontmostProcessId();
+  openDesktopThread(threadId, { focusComposer: true, prompt: message, background: true });
+  const result = run(OSASCRIPT, [
+    SEND_SCRIPT,
+    String(waitMs),
+    plan.submit_shortcut,
+    keepFocus ? "keep" : "restore",
+    String(previousProcessId),
+  ], {
     timeout: waitMs + 15000,
   });
   if (result.error) throw result.error;

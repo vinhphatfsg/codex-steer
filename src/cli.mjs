@@ -3,7 +3,7 @@ import { desktopDoctor, inspectDesktopUi, openDesktopThread, sendDesktopMessage 
 import { normalizeThreadId, threadDeepLink } from "./thread-id.mjs";
 import { listLocalThreads } from "./thread-store.mjs";
 
-const VERSION = "0.6.0";
+const VERSION = "0.7.0";
 
 const HELP = `codex-steer ${VERSION}
 
@@ -15,10 +15,15 @@ Usage:
   codex-steer thread resolve <UUID|codex://threads/...> [--json]
   codex-steer open <THREAD> [--json]
   codex-steer debug-ui <THREAD> [--wait-ms N] [--json]
-  codex-steer send <THREAD> <MESSAGE...> [--new-turn] [--dry-run] [--wait-ms N] [--json]
-  codex-steer <THREAD> <MESSAGE...> [--new-turn] [--dry-run] [--wait-ms N] [--json]
+  codex-steer send <THREAD> <MESSAGE...> [--new-turn] [--keep-focus] [--dry-run] [--wait-ms N] [--json]
+  codex-steer <THREAD> <MESSAGE...> [--new-turn] [--keep-focus] [--dry-run] [--wait-ms N] [--json]
 
 Use '-' as MESSAGE to read a multiline message from stdin.
+
+Send options:
+  --new-turn    Submit as a normal new turn instead of steering an active turn.
+  --keep-focus  Leave Codex focused after sending; the default restores the previous app.
+  --wait-ms N   Wait for the deep link to load before submitting (0-30000).
 `;
 
 function success(command, data, json) {
@@ -145,13 +150,14 @@ export async function main(argv) {
 
     const dryRun = takeFlag(args, "--dry-run");
     const newTurn = takeFlag(args, "--new-turn");
+    const keepFocus = takeFlag(args, "--keep-focus");
     const waitMs = Number.parseInt(takeOption(args, "--wait-ms", "1500"), 10);
     const threadInput = args.shift();
     if (!threadInput) throw new Error("send requires a thread ID or codex://threads URL.");
     const message = readMessage(args);
     if (message.trim() === "") throw new Error("send requires a non-empty message.");
     const threadId = normalizeThreadId(threadInput);
-    const data = sendDesktopMessage(threadId, message, { dryRun, waitMs, newTurn });
+    const data = sendDesktopMessage(threadId, message, { dryRun, waitMs, newTurn, keepFocus });
     success("send", data, json);
     if (!json) {
       console.log(dryRun

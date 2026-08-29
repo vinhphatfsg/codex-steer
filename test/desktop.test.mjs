@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildSendPlan, sendDesktopMessage } from "../src/desktop.mjs";
+import { buildOpenArgs, buildSendPlan, sendDesktopMessage } from "../src/desktop.mjs";
 
 const THREAD_ID = "01a04373-3770-71e0-a2e3-a3c196f5f5b1";
 
@@ -15,8 +15,29 @@ test("builds a redacted send plan", () => {
   assert.equal(plan.message_characters, 7);
   assert.equal(plan.delivery_strategy, "deep-link-prefill");
   assert.equal(plan.delivery_action, "steer");
+  assert.equal(plan.focus_policy, "restore-previous-app");
   assert.equal(plan.submit_shortcut, "command");
   assert.equal("message" in plan, false);
+});
+
+test("opens composer deep links in the background", () => {
+  const link = `codex://threads/${THREAD_ID}?prompt=test`;
+  assert.deepEqual(buildOpenArgs(link, { background: true }), [
+    "-g",
+    "-b",
+    "com.openai.codex",
+    link,
+  ]);
+});
+
+test("can explicitly keep Codex focused", () => {
+  const settings = {
+    follow_up_mode: "steer",
+    composer_enter_behavior: "enter",
+    submit_shortcut: "plain",
+  };
+  const plan = buildSendPlan(THREAD_ID, "test", 1500, settings, { keepFocus: true });
+  assert.equal(plan.focus_policy, "keep-codex-focused");
 });
 
 test("uses a normal submission shortcut for a stopped thread", () => {
