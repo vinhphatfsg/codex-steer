@@ -1,6 +1,13 @@
 export const VERSION = "0.9.0";
 
 export const topics = {
+  checkpoint: {
+    title: "検証したソースと結果・成果物を結び付ける",
+    when: "テスト結果が最終ソースのものか確認するとき、またはビルド前に検証の有効性を確認するとき。",
+    usage: ["checkpoint capture <THREAD> <NAME> --path PATH [--path PATH ...] [--exclude PATH ...]", "checkpoint run <THREAD> <ID> [--timeout-ms N] [--include-output] -- <COMMAND> [ARGS...]", "checkpoint attach <THREAD> <ID> --artifact FILE [--artifact FILE ...]", "checkpoint verify <THREAD> <ID>", "checkpoint list <THREAD>", "checkpoint show <THREAD> <ID> [--include-output]"],
+    returns: "captureはIDと入力ハッシュ、runは終了コードと入力変更、verifyは入力・最新実行・成果物の一致を返します。valid=falseならrun/verifyの終了コードは1です。",
+    examples: ["codex-steer checkpoint capture <THREAD> tests --path src --path test --path package.json --path package-lock.json --json", "codex-steer checkpoint run <THREAD> <ID> -- npm test", "codex-steer checkpoint attach <THREAD> <ID> --artifact test-results.xml --json", "codex-steer send <THREAD> 'この検証結果で次へ進んでください' --checkpoint <ID> --json"],
+    notes: ["--pathはファイルかディレクトリ。配下の追加・削除も検知します。.gitは除外。--excludeは実パスで、globではありません。出力先・キャッシュは入力から除外してください。ディレクトリのシンボリックリンクは実体を明示してください。", "コマンドはcaptureした作業場所で、シェル展開せず引数どおりに実行します。timeoutの既定0は制限なし、最大86400000ms。割り込み・timeoutは自分が起動したプロセス群を終了します。", "実行前後のハッシュと実行中のファイル監視を記録します。途中編集・監視エラーは有効な検証にしません。厳密な固定には隔離した入力を使ってください。", "成果物は最新の成功実行後に明示的にattachします。自動で生成元を証明するものではありません。URL・ディレクトリは成果物にできません（アプリはZIP等のファイルで指定）。", "validは選択した入力とコマンドの結果の整合性です。テスト範囲の十分性や配布許可は認定しません。ログ末尾32K文字はローカル保存し、--include-outputで表示します。", "--checkpointをsendに付けると送信直前にも照合し、無効なら送信を止めます。"] },
   instructions: {
     title: "現在有効な指示を確認し、古い指示を訂正する",
     when: "診断を撤回するとき、方針が変わったとき、長い会話で今の決定を確認するとき。",
@@ -52,7 +59,7 @@ export const topics = {
   send: {
     title: "実行中タスクに方針やレビューを伝える",
     when: "宛先と送る内容が決まったとき。停止中のタスクを続けるときだけ --new-turn を使います。",
-    usage: ["send <THREAD> <MESSAGE...> [--new-turn] [--dry-run] [--backend app-server|ui]", "send <THREAD> <MESSAGE...> [--source NAME] [--kind decision|review|hypothesis|suggestion] [--evidence FILE-OR-URL ...] [--based-on CURSOR] [--supersedes MESSAGE-ID] [--expires-at ISO-TIMESTAMP]", "<THREAD> <MESSAGE...> [sendと同じオプション]"],
+    usage: ["send <THREAD> <MESSAGE...> [--new-turn] [--dry-run] [--backend app-server|ui]", "send <THREAD> <MESSAGE...> [--source NAME] [--kind decision|review|hypothesis|suggestion] [--evidence FILE-OR-URL ...] [--based-on CURSOR] [--supersedes MESSAGE-ID] [--expires-at ISO-TIMESTAMP] [--checkpoint ID]", "<THREAD> <MESSAGE...> [sendと同じオプション]"],
     returns: "acceptedはサーバーの受付です。処理完了や画面への表示を保証するものではありません。",
     examples: ["codex-steer send <THREAD> '失敗したテストの原因を先に確認してください' --dry-run --json", "codex-steer send <THREAD> '競合が原因か確認してください' --source claude --kind hypothesis --evidence results.xml --based-on <CURSOR> --json", "codex-steer send <THREAD> '続けてください' --new-turn --json", "printf '%s\\n' '理由' '変更方針' | codex-steer send <THREAD> -"],
     notes: ["MESSAGEに - を指定すると標準入力を読みます。本文中のオプション名は -- の後に置いてください。", "--kindはdecision=ユーザー決定の伝達、review=レビュー、hypothesis=未確定の仮説、suggestion=任意提案です。指定時は送信者・種類・根拠を本文の前に表示します。無指定なら従来の本文をそのまま送ります。", "decisionは送信者の分類で、新しいユーザー承認を作りません。元のユーザー指示を根拠として示してください。", "--based-onはread/statusのcursor。新しいユーザー入力やターン変更があれば送信を止めます。通常の進捗報告だけでは止めません。根拠ファイルも送信直前にハッシュ照合します。URLは参照のみです。", "dry-runではファイル根拠を読めますが、接続・鮮度確認・保存・送信は行いません。鮮度確認と送信の間の変更を原子的には防げません。", "既定はapp-server。UI操作は --backend ui を明示した場合だけです。--keep-focusと--wait-msはUI専用です。", "unknownは受付未確認です。history checkで確認し、自動再送しないでください。"],
@@ -68,7 +75,7 @@ export const topics = {
 export function helpData(topic = "overview") {
   const data = topics[topic];
   if (!data) throw new Error(`Unknown help topic: ${topic}. Run codex-steer help.`);
-  return { version: VERSION, topic, ...data, ...(topic === "overview" ? { usage: [...data.usage, "history list|show|check|mark <THREAD> ...", "instructions list|retract <THREAD> ..."] } : {}) };
+  return { version: VERSION, topic, ...data, ...(topic === "overview" ? { usage: [...data.usage, "history list|show|check|mark <THREAD> ...", "instructions list|retract <THREAD> ...", "checkpoint capture|run|attach|verify|list|show <THREAD> ..."] } : {}) };
 }
 
 export function renderHelp(data) {

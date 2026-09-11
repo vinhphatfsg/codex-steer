@@ -6,6 +6,7 @@ import { sendTrackedMessage, listMessages, getMessage, messageSummary, reconcile
 import { appServerDoctor, startDesktop } from "./launcher.mjs";
 import { VERSION, helpData, renderHelp } from "./help.mjs";
 import { observeThread, printObservation } from "./observe.mjs";
+import { createCheckpoint, listCheckpoints, getCheckpoint, checkpointSummary, verifyCheckpoint, runCheckpoint, attachArtifacts } from "./checkpoint.mjs";
 
 const DEFAULT_SEND_BACKEND = "app-server";
 
@@ -91,6 +92,35 @@ export async function main(argv) {
     }
 
     let command = args.shift();
+    if (command === "checkpoint") {
+      const action = args.shift(), includeOutput = takeFlag(args, "--include-output");
+      let data;
+      if (action === "capture") {
+        const paths = takeOptions(args, "--path"), excludes = takeOptions(args, "--exclude");
+        if (args.length !== 2) throw new Error("Expected: checkpoint capture <THREAD> <NAME> --path PATH ...");
+        data = await createCheckpoint(args[0], args[1], { paths, excludes });
+      } else if (action === "run") {
+        const timeoutMs = Number(takeOption(args, "--timeout-ms", "0"));
+        if (args[2] !== "--" || args.length < 4) throw new Error("Expected: checkpoint run <THREAD> <ID> -- <COMMAND> [ARGS...]");
+        data = await runCheckpoint(args[0], args[1], args.slice(3), { timeoutMs });
+        if (!includeOutput) delete data.output_tail;
+        if (!data.valid) process.exitCode = 1;
+      } else if (action === "attach") {
+        const refs = takeOptions(args, "--artifact");
+        if (args.length !== 2) throw new Error("Expected: checkpoint attach <THREAD> <ID> --artifact FILE ...");
+        data = await attachArtifacts(args[0], args[1], refs);
+      } else if (action === "list") {
+        if (args.length !== 1) throw new Error("Expected: checkpoint list <THREAD>.");
+        data = await listCheckpoints(args[0]);
+      } else if (["show", "verify"].includes(action)) {
+        if (args.length !== 2) throw new Error(`Expected: checkpoint ${action} <THREAD> <ID>.`);
+        data = action === "verify" ? await verifyCheckpoint(args[0], args[1]) : checkpointSummary(await getCheckpoint(args[0], args[1]), includeOutput);
+        if (action === "verify" && !data.valid) process.exitCode = 1;
+      } else throw new Error("See codex-steer help checkpoint.");
+      success(`checkpoint.${action}`, data, json);
+      if (!json) console.log(JSON.stringify(data, null, 2));
+      return;
+    }
     if (command === "instructions") {
       const action = args.shift();
       if (action === "list") {
@@ -216,8 +246,8 @@ export async function main(argv) {
     const dryRun = takeFlag(args, "--dry-run");
     const backend = backendOption(args, DEFAULT_SEND_BACKEND);
     const newTurn = takeFlag(args, "--new-turn");
-    const directive = { source: takeOption(args, "--source", undefined), kind: takeOption(args, "--kind", undefined), evidence: takeOptions(args, "--evidence"), basedOn: takeOption(args, "--based-on", undefined), supersedes: takeOption(args, "--supersedes", undefined), expiresAt: takeOption(args, "--expires-at", undefined) };
-    if (backend === "ui" && (directive.source || directive.kind || directive.evidence.length || directive.basedOn || directive.supersedes || directive.expiresAt)) throw new Error("Directive metadata requires --backend app-server.");
+    const directive = { source: takeOption(args, "--source", undefined), kind: takeOption(args, "--kind", undefined), evidence: takeOptions(args, "--evidence"), basedOn: takeOption(args, "--based-on", undefined), supersedes: takeOption(args, "--supersedes", undefined), expiresAt: takeOption(args, "--expires-at", undefined), checkpoint: takeOption(args, "--checkpoint", undefined) };
+    if (backend === "ui" && (directive.source || directive.kind || directive.evidence.length || directive.basedOn || directive.supersedes || directive.expiresAt || directive.checkpoint)) throw new Error("Directive metadata requires --backend app-server.");
     const keepFocus = takeFlag(args, "--keep-focus");
     const waitInput = takeOption(args, "--wait-ms", undefined);
     if (backend !== "ui" && (keepFocus || waitInput != null)) throw new Error("--keep-focus and --wait-ms require --backend ui.");

@@ -117,6 +117,18 @@ UI方式には実行元ターミナルのAccessibility許可が必要です。�
 
 ## JSON契約
 
+検証と入力を結び付けるにはチェックポイントを使います。
+
+```bash
+codex-steer checkpoint capture <thread-id> tests --path src --path test --path package.json --path package-lock.json --json
+codex-steer checkpoint run <thread-id> <checkpoint-id> -- npm test
+codex-steer checkpoint attach <thread-id> <checkpoint-id> --artifact results.xml --json
+codex-steer checkpoint verify <thread-id> <checkpoint-id> --json
+codex-steer send <thread-id> '検証結果に基づき次へ進んでください' --checkpoint <checkpoint-id> --json
+```
+
+入力ファイル集合をハッシュで記録し、実行前後の照合と実行中のファイル監視で変更を検出します。追加・削除も対象で、変更や監視エラーがあれば終了コード0でも`valid:false`です。成果物は成功後に明示的に関連付け、その後の変更も検出します。`.git`以外の除外は`--exclude`で指定し、出力先・キャッシュを入力に含めないでください。ディレクトリのシンボリックリンクは実体を明示します。`valid`は選択した入力と実行の整合性で、テストの十分性や配布許可ではありません。厳密に入力を固定する場合は隔離チェックアウトを使います。
+
 有効な指示の確認と、訂正・撤回もCLIから扱えます。
 
 ```bash

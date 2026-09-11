@@ -54,13 +54,13 @@ export async function sendTrackedMessage(threadInput, body, options = {}, { send
   const threadId = normalizeThreadId(threadInput);
   if (options.dryRun) {
     await validateReplacement(threadId, options, storage);
-    const prepared = await prepareDirective(threadId, body, options, "preview");
+    const prepared = await prepareDirective(threadId, body, options, "preview", storage);
     return { ...await send(threadId, prepared.wireText, options), ...(prepared.metadata ? { metadata: prepared.metadata, freshness_checked: false } : {}) };
   }
   return withStoreLock(`message-${threadId}`, async () => {
     await validateReplacement(threadId, options, storage);
     const id = randomUUID(), created = new Date().toISOString();
-    const prepared = await prepareDirective(threadId, body, options, id);
+    const prepared = await prepareDirective(threadId, body, options, id, storage);
     let entry = { schema: 1, id, client_message_id: id, thread_id: threadId, created_at: created, updated_at: created, body, wire_text: prepared.wireText, metadata: prepared.metadata,
       message_sha256: digest(prepared.wireText), delivery_status: "unknown", sent: null, attempt_state: "prepared", response: { status: "unreported" } };
     await writeRecord("messages", id, entry, storage);
