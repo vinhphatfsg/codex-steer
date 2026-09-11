@@ -56,7 +56,7 @@ export async function createCheckpoint(threadInput, name, { paths, excludes = []
 
 const withoutOutput = ({ output_tail, ...rest }) => rest;
 export function checkpointSummary(entry, includeOutput = false) {
-  return { ...entry, runs: includeOutput ? entry.runs : entry.runs.map(withoutOutput), snapshot: { ...entry.snapshot, files: undefined, file_count: entry.snapshot.files.length } };
+  return { ...entry, runs: includeOutput ? entry.runs : entry.runs.map(withoutOutput), snapshot: { ...entry.snapshot, files: undefined, file_count: entry.snapshot.files.filter(f => f.type === "file").length, directory_count: entry.snapshot.files.filter(f => f.type === "directory").length } };
 }
 
 export async function verifyCheckpoint(threadInput, id, storage = {}) {
@@ -124,5 +124,5 @@ export async function attachArtifacts(threadInput, id, refs, storage = {}) {
 
 export async function listCheckpoints(threadInput, storage = {}) {
   const threadId = normalizeThreadId(threadInput);
-  return (await listRecords("checkpoints", storage)).filter(c => c?.thread_id === threadId).sort((a, b) => a.created_at.localeCompare(b.created_at)).map(checkpointSummary);
+  return (await listRecords("checkpoints", storage)).filter(c => c?.thread_id === threadId).sort((a, b) => a.created_at.localeCompare(b.created_at)).map(entry => checkpointSummary(entry));
 }
