@@ -7,6 +7,7 @@ import { appServerDoctor, startDesktop } from "./launcher.mjs";
 import { VERSION, helpData, renderHelp } from "./help.mjs";
 import { observeThread, printObservation } from "./observe.mjs";
 import { createCheckpoint, listCheckpoints, getCheckpoint, checkpointSummary, verifyCheckpoint, runCheckpoint, attachArtifacts } from "./checkpoint.mjs";
+import { acquireResource, resourceStatus, renewResource, releaseResource, listResources, runWithResource } from "./resource.mjs";
 
 const DEFAULT_SEND_BACKEND = "app-server";
 
@@ -92,6 +93,31 @@ export async function main(argv) {
     }
 
     let command = args.shift();
+    if (command === "resource") {
+      const action = args.shift(); let data;
+      if (["acquire", "run"].includes(action)) {
+        const options = { owner: takeOption(args, "--owner", undefined), ttlMs: Number(takeOption(args, "--ttl-ms", "600000")), reason: takeOption(args, "--reason", ""), condition: takeOption(args, "--condition", ""), threadId: takeOption(args, "--thread", undefined) };
+        if (action === "run") {
+          const timeoutMs = Number(takeOption(args, "--timeout-ms", "0")), includeOutput = takeFlag(args, "--include-output");
+          if (args[1] !== "--" || args.length < 3) throw new Error("Expected: resource run <NAME> --owner NAME -- <COMMAND> [ARGS...]");
+          data = await runWithResource(args[0], args.slice(2), { ...options, timeoutMs });
+          if (!includeOutput) delete data.output_tail;
+          if (!data.valid) process.exitCode = 1;
+        } else {
+          if (args.length !== 1) throw new Error("Expected: resource acquire <NAME> --owner NAME.");
+          data = await acquireResource(args[0], options);
+        }
+      } else if (["renew", "release"].includes(action)) {
+        const token = takeOption(args, "--token", undefined), ttlMs = action === "renew" ? Number(takeOption(args, "--ttl-ms", "600000")) : undefined;
+        if (args.length !== 1) throw new Error(`Expected: resource ${action} <NAME> --token TOKEN.`);
+        data = action === "renew" ? await renewResource(args[0], token, { ttlMs }) : await releaseResource(args[0], token);
+      } else if (action === "status" && args.length === 1) data = await resourceStatus(args[0]);
+      else if (action === "list" && args.length === 0) data = await listResources();
+      else throw new Error("See codex-steer help resource.");
+      success(`resource.${action}`, data, json);
+      if (!json) console.log(JSON.stringify(data, null, 2));
+      return;
+    }
     if (command === "checkpoint") {
       const action = args.shift(), includeOutput = takeFlag(args, "--include-output");
       let data;

@@ -117,6 +117,17 @@ UI方式には実行元ターミナルのAccessibility許可が必要です。�
 
 ## JSON契約
 
+複数AIで同じ画面・Unity・Gitを利用する場合、名前付きリースを共有できます。
+
+```bash
+codex-steer resource acquire screen --owner claude-code --ttl-ms 120000 --condition '今回の画面利用はユーザー許可済み' --json
+codex-steer resource status screen --json
+codex-steer resource release screen --token <token> --json
+codex-steer resource run unity-project-a --owner codex --ttl-ms 600000 -- npm test
+```
+
+同じCODEX_HOMEとリソース名を使う参加者間の協調用です。取得成功はOSの排他や新しい画面利用許可を意味しません。手動取得は期限付きで、古いtokenから別所有者の予約を更新・解放できません。`run`は実行中に自動更新し、終了時に解放します。更新ができなくなった場合は自分が起動したコマンド群を終了します。
+
 検証と入力を結び付けるにはチェックポイントを使います。
 
 ```bash

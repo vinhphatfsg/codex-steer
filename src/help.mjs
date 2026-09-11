@@ -1,6 +1,13 @@
 export const VERSION = "0.9.0";
 
 export const topics = {
+  resource: {
+    title: "画面・Unity・Gitなどの利用予定をAI間で共有する",
+    when: "複数AIの画面操作、ビルド、コミットが重ならないように調整するとき。",
+    usage: ["resource acquire <NAME> --owner NAME [--ttl-ms N] [--thread THREAD] [--reason TEXT] [--condition TEXT]", "resource status <NAME>", "resource list", "resource renew <NAME> --token TOKEN [--ttl-ms N]", "resource release <NAME> --token TOKEN", "resource run <NAME> --owner NAME [--ttl-ms N] [--timeout-ms N] [--include-output] [--condition TEXT] -- <COMMAND> [ARGS...]"],
+    returns: "所有者、期限、利用条件のメモ、tokenを返します。競合時は送信やコマンド実行を始めず失敗します。",
+    examples: ["codex-steer resource acquire screen --owner claude-code --ttl-ms 120000 --condition 'ユーザーが今回の2分間の画面利用を許可済み' --json", "codex-steer resource run unity-project-a --owner codex --ttl-ms 600000 -- npm test", "codex-steer resource release screen --token <TOKEN> --json"],
+    notes: ["同じCODEX_HOMEと同じリソース名を使う参加者間だけの協調用リースです。OSの画面やUnity自体を強制ロックしません。", "ttlの既定は10分、指定範囲は1000〜86400000ms。手動取得はプロセス終了後も期限まで残り、tokenで更新・解放します。古いtokenで新しい所有者の予約は消せません。", "runはコマンド実行中に自動更新し、終了時に解放します。更新に失敗したら自分が起動したコマンド群を終了します。コマンドは -- の後へ置き、シェル展開しません。", "--conditionは許可済み条件の記録です。入力アイドルや取得成功だけで画面利用の許可を生成しません。", "実行時間を制限する場合は--timeout-ms（最大86400000、既定0=制限なし）。runが異常終了した場合はリース期限後に再取得できます。"] },
   checkpoint: {
     title: "検証したソースと結果・成果物を結び付ける",
     when: "テスト結果が最終ソースのものか確認するとき、またはビルド前に検証の有効性を確認するとき。",
@@ -75,7 +82,7 @@ export const topics = {
 export function helpData(topic = "overview") {
   const data = topics[topic];
   if (!data) throw new Error(`Unknown help topic: ${topic}. Run codex-steer help.`);
-  return { version: VERSION, topic, ...data, ...(topic === "overview" ? { usage: [...data.usage, "history list|show|check|mark <THREAD> ...", "instructions list|retract <THREAD> ...", "checkpoint capture|run|attach|verify|list|show <THREAD> ..."] } : {}) };
+  return { version: VERSION, topic, ...data, ...(topic === "overview" ? { usage: [...data.usage, "history list|show|check|mark <THREAD> ...", "instructions list|retract <THREAD> ...", "checkpoint capture|run|attach|verify|list|show <THREAD> ...", "resource acquire|status|list|renew|release|run ..."] } : {}) };
 }
 
 export function renderHelp(data) {
