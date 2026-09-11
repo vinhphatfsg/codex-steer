@@ -1,6 +1,14 @@
 export const VERSION = "0.9.0";
 
 export const topics = {
+  monitor: {
+    title: "Claude CodeのMonitorに変化を渡す",
+    when: "Monitorで通知を受け、Claudeが差分を見てレビュー・検証・追加指示を判断する運用。",
+    usage: ["watch <THREAD> --stream [--since CURSOR] [--poll-ms N] [--limit N] [--max-chars N] [--include-output]", "read <THREAD> [--since CURSOR]", "help send", "help checkpoint", "help history"],
+    returns: "--streamは変化ごとに1行のJSONを返します。data.events、attention、cursorをClaudeが読み、必要なときだけ次の操作を選びます。",
+    examples: ["codex-steer watch <THREAD> --stream --poll-ms 1000 --json", "codex-steer read <THREAD> --since <LAST-CURSOR> --json", "codex-steer send <THREAD> '失敗箇所を先に確認してください' --source claude-code --kind review --based-on <CURSOR> --json", "codex-steer history check <THREAD> <MESSAGE-ID> --json"],
+    notes: ["Claudeに、例のwatchコマンドをMonitorで実行するよう依頼します。codex-steer側でClaudeやMonitorを起動・設定する処理はありません。", "既存のログ監視を続ける場合は、その通知後にread --sinceを呼ぶだけで使えます。watch --streamへの置換は任意です。", "--streamは常にJSON Linesです。初回は黙って基準を取り、同じ状態や定期的な生存確認を出力しません。開始時の状態も判断する場合は先にreadしてください。", "読み取り直後からの取りこぼしを避けるには、そのcursorをwatch --stream --sinceへ渡します。未取得ページは順に出力します。", "中断まで継続します。SIGINT/SIGTERMまたはMonitorのキャンセルで終了。--until/--timeout-msとは併用しません。切断・古いcursorではエラーを1行返して終了し、自動再接続・再送はしません。", "自分の送信が履歴へ現れただけなら追加送信せず、重複した指摘はhistory/instructionsで確認します。変更通知は新しい承認ではありません。", "検証結果はcheckpoint verify、誤った診断はsend --supersedes、複数AIの利用調整はresourceを使います。手順と判断例はdocs/claude-code-monitor.mdに記載しています。"],
+  },
   resource: {
     title: "画面・Unity・Gitなどの利用予定をAI間で共有する",
     when: "複数AIの画面操作、ビルド、コミットが重ならないように調整するとき。",
@@ -37,6 +45,15 @@ export const topics = {
     usage: ["threads list [--desktop-only] [--limit N]", "status <THREAD>", "read <THREAD> [--since CURSOR] [--limit N]", "watch <THREAD> [--since CURSOR] [--until change|idle|attention]", "send <THREAD> <MESSAGE...> [--new-turn] [--dry-run]", "doctor [--backend app-server|ui]", "desktop start [--dry-run]", "thread resolve <THREAD>", "open <THREAD>", "debug-ui <THREAD> [--wait-ms N]", "help <COMMAND>"],
     returns: "各コマンドに --json を付けると、AIやスクリプトが扱えるJSONを返します。",
     examples: ["codex-steer threads list --desktop-only --json", "codex-steer read <THREAD> --json", "codex-steer help send"],
+    use_cases: [
+      { need: "今の状態・前回からの変化を確認", command: "help read / help status" },
+      { need: "Claude CodeのMonitorから使う", command: "help monitor" },
+      { need: "根拠や仮説を付けて指示する", command: "help send" },
+      { need: "届いたか・対応されたかを確認", command: "help history" },
+      { need: "古い診断を訂正・撤回", command: "help instructions" },
+      { need: "テストしたソースと成果物を照合", command: "help checkpoint" },
+      { need: "画面・Unityなどの利用を調整", command: "help resource" },
+    ],
     notes: ["THREADにはUUIDまたはcodex://threads/...を指定します。", "コマンド別のhelpには、使い所・出力・例・制約を載せています。help自体も --json に対応します。"],
   },
   read: {
@@ -58,10 +75,10 @@ export const topics = {
   watch: {
     title: "変化・完了・ユーザー対応待ちまで待つ",
     when: "同じログを繰り返し読まず、次のレビューが必要なタイミングを待ちたいとき。",
-    usage: ["watch <THREAD> [--since CURSOR] [--until change|idle|attention] [--timeout-ms N] [--poll-ms N] [--limit N] [--max-chars N] [--include-output]"],
-    returns: "条件成立または時間切れで1回だけ返します。reason、timed_out、events、cursorを確認してください。",
+    usage: ["watch <THREAD> [--since CURSOR] [--until change|idle|attention] [--timeout-ms N] [--poll-ms N] [--limit N] [--max-chars N] [--include-output]", "watch <THREAD> --stream [--since CURSOR] [--poll-ms N] [--limit N] [--max-chars N] [--include-output]"],
+    returns: "通常は条件成立または時間切れで1回返します（reason、timed_out、events、cursor）。--streamは変化ごとに1行のJSONを出し続けます。",
     examples: ["codex-steer watch <THREAD> --since <CURSOR> --json", "codex-steer watch <THREAD> --until idle --timeout-ms 60000 --json"],
-    notes: ["既定はchange、30秒待ち、1秒間隔。timeoutは0〜60000ms、pollは250〜10000ms。", "--sinceなしのchangeは現在を基準に次の変化を待ちます。idle/attentionは既に成立していればすぐ返します。", "読み取り専用のポーリングです。自動送信・再開・承認回答・常駐登録は行いません。"],
+    notes: ["既定はchange、30秒待ち、1秒間隔。timeoutは0〜60000ms、pollは250〜10000ms。", "--sinceなしのchangeは現在を基準に次の変化を待ちます。idle/attentionは既に成立していればすぐ返します。", "--streamは中断までJSON Linesで変化だけを通知します。--until/--timeout-msと併用不可。Claude Code向けの手順はhelp monitorへ。", "読み取り専用のポーリングです。自動送信・再開・承認回答・常駐登録は行いません。"],
   },
   send: {
     title: "実行中タスクに方針やレビューを伝える",
@@ -86,5 +103,5 @@ export function helpData(topic = "overview") {
 }
 
 export function renderHelp(data) {
-  return [`codex-steer ${data.version} — ${data.title}`, "", `使い所: ${data.when}`, "", "使い方:", ...data.usage.map(x => `  codex-steer ${x} [--json]`), "", `確認できること: ${data.returns}`, "", "例:", ...data.examples.map(x => `  ${x}`), "", ...data.notes.map(x => `• ${x}`)].join("\n");
+  return [`codex-steer ${data.version} — ${data.title}`, "", `使い所: ${data.when}`, ...(data.use_cases ? ["", "目的から選ぶ:", ...data.use_cases.map(x => `  ${x.need} → codex-steer ${x.command}`)] : []), "", "使い方:", ...data.usage.map(x => `  codex-steer ${x} [--json]`), "", `確認できること: ${data.returns}`, "", "例:", ...data.examples.map(x => `  ${x}`), "", ...data.notes.map(x => `• ${x}`)].join("\n");
 }

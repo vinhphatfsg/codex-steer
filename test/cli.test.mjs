@@ -69,7 +69,7 @@ test("unknown backend and empty messages fail before doing any work", () => {
 });
 
 test("command help explains purpose, results and examples without contacting Desktop", () => {
-  for (const topic of ["read", "status", "watch", "send", "history", "instructions", "checkpoint", "resource", "doctor", "desktop", "threads", "thread", "open", "debug-ui"]) {
+  for (const topic of ["read", "status", "watch", "monitor", "send", "history", "instructions", "checkpoint", "resource", "doctor", "desktop", "threads", "thread", "open", "debug-ui"]) {
     for (const args of [["help", topic], [topic, "--help"]]) {
       const { status, result } = cli(args);
       assert.equal(status, 0); assert.equal(result.command, "help");
@@ -78,6 +78,19 @@ test("command help explains purpose, results and examples without contacting Des
   }
   const plain = spawnSync(process.execPath, ["bin/codex-steer.mjs", "read", "--help"], { encoding: "utf8" });
   assert.match(plain.stdout, /使い所:/); assert.match(plain.stdout, /確認できること:/);
+});
+
+test("Monitor stream rejects one-shot flags before connecting and always uses JSON errors", t => {
+  const home = mkdtempSync(path.join(os.tmpdir(), "cs-monitor-cli-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  for (const args of [["--until", "idle"], ["--timeout-ms", "1000"]]) {
+    const result = cli(["watch", ID, "--stream", ...args], undefined, { CODEX_HOME: home });
+    assert.equal(result.status, 1); assert.match(result.result.error.message, /do not combine/);
+  }
+  const result = spawnSync(process.execPath, ["bin/codex-steer.mjs", "watch", ID, "--stream"], { encoding: "utf8", env: { ...process.env, CODEX_HOME: home } });
+  assert.equal(result.status, 1);
+  assert.equal(result.stdout.trim().split("\n").length, 1);
+  assert.equal(JSON.parse(result.stdout).ok, false);
 });
 
 test("metadata dry-run validates kind and evidence without exposing message text", () => {

@@ -60,6 +60,14 @@ Desktopには、その起動に限定して`CODEX_CLI_PATH`でラッパーを指
 
 `codex-steer help` は用途別の入口です。`codex-steer read --help` のように各コマンドから使い所・確認できること・例を読めます。`help read --json` は同じ説明を構造化JSONで返します。
 
+Claude CodeのMonitorで使う場合は`codex-steer help monitor`から始めてください。既存のログ更新通知後に`read --since`を呼ぶ方法と、次のコマンドをMonitorで起動する方法があります。
+
+```bash
+codex-steer watch <thread-id> --stream --json
+```
+
+変化時だけ1行のJSONを出力します。Claudeが通知を読み、必要に応じて検証や指示を実行します。初回は現在を基準に待ち始めます。先に読んだ時点から続けるには`--since <cursor>`を付けます。[Monitor運用ガイド](docs/claude-code-monitor.md)に判断例と引き継ぎ用の指示文があります。
+
 別AIからレビューするときは、まず現状を読み、返されたcursorを次回へ引き継ぎます。
 
 ```bash
@@ -115,7 +123,7 @@ UI方式には実行元ターミナルのAccessibility許可が必要です。�
 
 既存の`open <ID>`と`debug-ui <ID> [--wait-ms N]`も残しています。これらは明示的に画面を操作するコマンドです。
 
-## JSON契約
+## 複数AIの利用調整
 
 複数AIで同じ画面・Unity・Gitを利用する場合、名前付きリースを共有できます。
 
@@ -127,6 +135,8 @@ codex-steer resource run unity-project-a --owner codex --ttl-ms 600000 -- npm te
 ```
 
 同じCODEX_HOMEとリソース名を使う参加者間の協調用です。取得成功はOSの排他や新しい画面利用許可を意味しません。手動取得は期限付きで、古いtokenから別所有者の予約を更新・解放できません。`run`は実行中に自動更新し、終了時に解放します。更新ができなくなった場合は自分が起動したコマンド群を終了します。
+
+## 検証チェックポイント
 
 検証と入力を結び付けるにはチェックポイントを使います。
 
@@ -140,6 +150,8 @@ codex-steer send <thread-id> '検証結果に基づき次へ進んでくださ�
 
 入力ファイル集合をハッシュで記録し、実行前後の照合と実行中のファイル監視で変更を検出します。追加・削除も対象で、変更や監視エラーがあれば終了コード0でも`valid:false`です。成果物は成功後に明示的に関連付け、その後の変更も検出します。`.git`以外の除外は`--exclude`で指定し、出力先・キャッシュを入力に含めないでください。ディレクトリのシンボリックリンクは実体を明示します。`valid`は選択した入力と実行の整合性で、テストの十分性や配布許可ではありません。厳密に入力を固定する場合は隔離チェックアウトを使います。
 
+## 指示の訂正・撤回
+
 有効な指示の確認と、訂正・撤回もCLIから扱えます。
 
 ```bash
@@ -150,6 +162,8 @@ codex-steer instructions retract <thread-id> <message-id> --reason '再計測で
 
 置換・撤回は相手へ明示的に送信し、元履歴は残します。受付不明の場合は旧指示を有効なまま保留を表示し、`history check`で照合するまで次の置換を拒否します。`instructions list --all`で履歴を確認できます。`--expires-at`は時差付きISO日時で、期限後は有効一覧から除外します。既に進行中の作業を自動停止する機能ではありません。
 
+## 指示の種類・根拠・鮮度
+
 指示をレビューや仮説として区別し、見た根拠と結び付けられます。
 
 ```bash
@@ -157,6 +171,8 @@ codex-steer send <thread-id> '競合の可能性を確認してください' --s
 ```
 
 `--kind`は`decision`（ユーザー決定の伝達）、`review`、`hypothesis`、`suggestion`です。メタデータ指定時だけ、ID・送信者・種類・根拠の短い説明を本文の前に付けます。`decision`という自己申告はユーザーの新しい承認ではありません。`--based-on`は`read/status`のcursorで、新しいユーザー入力やターン変更があれば送信を止めます。根拠ファイルの変更・消失も送信直前に検出します。URLは取得せず参照として保存します。確認と送信は別操作のため、直後の変更まで原子的に防ぐものではありません。
+
+## 送信と対応の履歴
 
 app-server送信は、送信前にIDと本文を`$CODEX_HOME/codex-steer/messages/`（未指定時は`~/.codex`配下）へ記録します。ファイルは0600です。以前の送信やUI方式は取り込みません。
 
@@ -169,7 +185,9 @@ codex-steer history mark <thread-id> <message-id> --status applied --note '回�
 
 `check`は同じ`client_message_id`と本文ハッシュを受信履歴で照合します。`stored`は保存確認、`not_observed`は未確認、`conflict`はID/本文の不一致です。後続の発言があるだけで対応完了とはしません。`mark`は記録者による申告を履歴として残し、`applied`には根拠が必要です。未知の配送を自動再送する処理はありません。受付後にローカル記録更新だけが失敗した場合も、受付結果を保持して`journal_update_required:true`を返します。
 
-既存の`ok`・`command`・`data`形式を維持します。バックグラウンド方式の受付成功:
+## JSON契約
+
+既存の`ok`・`command`・`data`形式を維持します。`watch --stream`は同じ形式を1行ずつ返し、通常の各コマンドは1回だけ返します。バックグラウンド方式の受付成功:
 
 ```json
 {"ok":true,"command":"send","data":{"thread_id":"...","turn_id":"...","client_message_id":"...","backend":"app-server","sent":true,"delivery_status":"accepted"}}

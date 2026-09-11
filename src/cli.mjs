@@ -6,6 +6,7 @@ import { sendTrackedMessage, listMessages, getMessage, messageSummary, reconcile
 import { appServerDoctor, startDesktop } from "./launcher.mjs";
 import { VERSION, helpData, renderHelp } from "./help.mjs";
 import { observeThread, printObservation } from "./observe.mjs";
+import { monitorCommand } from "./monitor.mjs";
 import { createCheckpoint, listCheckpoints, getCheckpoint, checkpointSummary, verifyCheckpoint, runCheckpoint, attachArtifacts } from "./checkpoint.mjs";
 import { acquireResource, resourceStatus, renewResource, releaseResource, listResources, runWithResource } from "./resource.mjs";
 
@@ -74,7 +75,7 @@ function printThreads(threads) {
 
 export async function main(argv) {
   const args = [...argv];
-  const json = takeFlag(args, "--json");
+  let json = takeFlag(args, "--json");
 
   try {
     if (takeFlag(args, "--version")) {
@@ -185,8 +186,15 @@ export async function main(argv) {
         maxChars: Number(takeOption(args, "--max-chars", "2000")),
         includeOutput: takeFlag(args, "--include-output"),
       };
-      if (command === "watch") Object.assign(options, { watch: true, until: takeOption(args, "--until", "change"), timeoutMs: Number(takeOption(args, "--timeout-ms", "30000")), pollMs: Number(takeOption(args, "--poll-ms", "1000")) });
+      const stream = command === "watch" && takeFlag(args, "--stream");
+      if (stream) json = true;
+      if (command === "watch") {
+        const until = takeOption(args, "--until", undefined), timeout = takeOption(args, "--timeout-ms", undefined);
+        if (stream && (until !== undefined || timeout !== undefined)) throw new Error("--stream runs until cancelled; do not combine it with --until or --timeout-ms. See codex-steer help monitor.");
+        Object.assign(options, { watch: true, until: until ?? "change", timeoutMs: Number(timeout ?? "30000"), pollMs: Number(takeOption(args, "--poll-ms", "1000")) });
+      }
       if (args.length !== 1) throw new Error(`Expected: ${command} <THREAD>. See codex-steer help ${command}.`);
+      if (stream) { await monitorCommand(args[0], options); return; }
       const data = await observeThread(args[0], options);
       if (command === "status") delete data.events;
       success(command, data, json);

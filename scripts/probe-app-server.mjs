@@ -12,7 +12,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { RpcClient } from "../src/rpc.mjs";
 import { sendAppServerMessage } from "../src/app-server.mjs";
 import { observeThread } from "../src/observe.mjs";
-import { getMessage, reconcileMessages } from "../src/journal.mjs";
+import { getMessage, reconcileMessages, listInstructions } from "../src/journal.mjs";
 import { discoverRuntime, runtimePaths } from "../src/runtime.mjs";
 import { BUNDLED_CLI, BUNDLED_NODE } from "../src/wrapper.mjs";
 
@@ -58,6 +58,7 @@ async function until(check, label) {
 const root = await mkdtemp("/private/tmp/cs-probe-");
 const paths = await runtimePaths(root);
 let child;
+let monitor;
 let desktop;
 let diagnostics = "";
 const peers = new Set();
@@ -215,6 +216,36 @@ try {
   assert.equal(journal.client_message_id, cliReceipt.data.client_message_id);
   const verifiedJournal = await reconcileMessages(thread.id, journal.id, { home: root }, { discover: () => discoverRuntime(root) });
   assert.equal(verifiedJournal[0].verification.status, "stored");
+  const fresh = await observeThread(thread.id, {}, { discover: () => discoverRuntime(root) });
+  await writeFile(`${root}/evidence.txt`, "synthetic review evidence");
+  const cliArgs = [fileURLToPath(new URL("../bin/codex-steer.mjs", import.meta.url))];
+  const cliOptions = { cwd: root, env: { ...process.env, CODEX_HOME: root }, timeout: 15000 };
+  const typed = JSON.parse((await promisify(execFile)(process.execPath, [...cliArgs, "send", thread.id, "訂正した仮説", "--source", "claude-code", "--kind", "hypothesis", "--evidence", `${root}/evidence.txt`, "--based-on", fresh.cursor, "--supersedes", journal.id, "--json"], cliOptions)).stdout).data;
+  const typedEntry = await getMessage(thread.id, typed.message_id, { home: root });
+  assert.equal(typedEntry.metadata.supersedes, journal.id);
+  await modelOutput(stream => ({ type: "message", id: `msg-${stream.id}`, role: "assistant", status: "completed", content: [{ type: "output_text", text: "probe response 3" }] }));
+  await checkUserMessageIdentity(thread.id, typed, typedEntry.wire_text);
+  assert.equal((await reconcileMessages(thread.id, typed.message_id, { home: root }, { discover: () => discoverRuntime(root) }))[0].verification.status, "stored");
+  assert.equal((await listInstructions(thread.id, { home: root, all: true })).instructions.find(e => e.id === journal.id).instruction_status, "superseded");
+  await assert.rejects(promisify(execFile)(process.execPath, [...cliArgs, "send", thread.id, "must not send stale review", "--based-on", fresh.cursor, "--json"], cliOptions), error => {
+    const response = JSON.parse(error.stdout);
+    assert.equal(response.error.code, "STALE_OBSERVATION"); assert.equal(response.error.sent, false); return true;
+  });
+
+  // Exactly the command a Monitor consumer runs, including backlog pagination
+  // and cancellation while the task's model call is still in progress.
+  const monitorLines = []; let monitorErrors = "";
+  monitor = spawn(BUNDLED_NODE, [...cliArgs, "watch", thread.id, "--stream", "--since", observation.cursor, "--limit", "1", "--poll-ms", "250"], { ...cliOptions, timeout: undefined, stdio: ["ignore", "pipe", "pipe"] });
+  const monitorExit = once(monitor, "exit");
+  createInterface({ input: monitor.stdout }).on("line", line => monitorLines.push(line));
+  monitor.stderr.on("data", data => { monitorErrors += data; });
+  await until(() => monitorLines.map(line => JSON.parse(line)).find(line => line.data?.events.some(e => e.client_message_id === typed.client_message_id)), "Monitor typed message");
+  assert.ok(monitorLines.every(line => JSON.parse(line).ok === true));
+  const lineCount = monitorLines.length;
+  await delay(600); assert.equal(monitorLines.length, lineCount, "Unchanged task does not produce Monitor heartbeats");
+  monitor.kill("SIGTERM");
+  assert.deepEqual(await monitorExit, [0, null]); assert.equal(monitorErrors, ""); monitor = null;
+  console.log(JSON.stringify({ checkpoint: "steering-assistance-monitor", result: "PASS", typed_replacement_stored: true, stale_review_rejected: true, jsonl_cursor_pages: true, silent_when_unchanged: true, cancellation: true }));
   await desktop.request("turn/interrupt", { threadId: thread.id, turnId: turn.id });
   await idle(thread.id);
   console.log(JSON.stringify({ checkpoint: "CP1-CP3-protocol", result: "PASS", thread_id: thread.id, turn_id: turn.id, stale_turn_rejected: true, desktop_steer_client_id: true, cli_url_shorthand_client_id: true }));
@@ -263,6 +294,7 @@ try {
   console.error(diagnostics); // isolated environment, synthetic input, no credentials
   process.exitCode = 1;
 } finally {
+  if (monitor && monitor.exitCode === null && monitor.signalCode === null) { const done = once(monitor, "exit"); monitor.kill("SIGTERM"); await done; }
   await shutdown();
   for (const stream of streams) stream.response.destroy();
   provider.closeAllConnections();
