@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { desktopDoctor, inspectDesktopUi, openDesktopThread, sendDesktopMessage } from "./desktop.mjs";
 import { normalizeThreadId, threadDeepLink } from "./thread-id.mjs";
 import { listLocalThreads } from "./thread-store.mjs";
-import { sendAppServerMessage } from "./app-server.mjs";
+import { sendTrackedMessage, listMessages, getMessage, messageSummary, reconcileMessages, markMessage } from "./journal.mjs";
 import { appServerDoctor, startDesktop } from "./launcher.mjs";
 import { VERSION, helpData, renderHelp } from "./help.mjs";
 import { observeThread, printObservation } from "./observe.mjs";
@@ -19,6 +19,7 @@ function fail(error, json) {
   if (json) console.log(JSON.stringify({ ok: false, error: {
     message, code: error.code, delivery_status: error.delivery_status,
     sent: error.sent, thread_id: error.thread_id, rpc_code: error.rpc_code,
+    message_id: error.message_id, client_message_id: error.client_message_id, journal_update_required: error.journal_update_required,
   } }));
   else console.error(`codex-steer: ${message}`);
   process.exitCode = 1;
@@ -38,6 +39,12 @@ function takeFlag(args, name) {
   if (index === -1 || (args.includes("--") && index > args.indexOf("--"))) return false;
   args.splice(index, 1);
   return true;
+}
+
+function takeOptions(args, name) {
+  const values = []; let value;
+  while ((value = takeOption(args, name, undefined)) !== undefined) values.push(value);
+  return values;
 }
 
 function readMessage(parts) {
@@ -84,6 +91,18 @@ export async function main(argv) {
     }
 
     let command = args.shift();
+    if (command === "history") {
+      const action = args.shift();
+      const includeText = takeFlag(args, "--include-text");
+      const pending = takeFlag(args, "--pending");
+      const report = action === "mark" ? { status: takeOption(args, "--status", undefined), note: takeOption(args, "--note", undefined), evidence: takeOptions(args, "--evidence"), by: takeOption(args, "--by", "local") } : {};
+      const [threadId, id] = args;
+      if (!threadId || args.length > 2 || !["list", "show", "check", "mark"].includes(action) || (["show", "mark"].includes(action) && !id) || (action === "list" && id)) throw new Error("See codex-steer help history.");
+      const data = action === "list" ? await listMessages(threadId, { includeText, pending }) : action === "show" ? messageSummary(await getMessage(threadId, id), includeText) : action === "check" ? await reconcileMessages(threadId, id, { includeText }) : await markMessage(threadId, id, report);
+      success(`history.${action}`, data, json);
+      if (!json) for (const entry of Array.isArray(data) ? data : [data]) console.log(`${entry.id}  ${entry.delivery_status}  history:${entry.verification?.status ?? "unchecked"}  response:${entry.response.status}${entry.body ? "\n" + entry.body : ""}`);
+      return;
+    }
     if (["read", "status", "watch"].includes(command)) {
       const options = command === "status" ? {} : {
         since: takeOption(args, "--since", undefined),
@@ -188,7 +207,7 @@ export async function main(argv) {
     if (message.trim() === "") throw new Error("send requires a non-empty message.");
     const threadId = normalizeThreadId(threadInput);
     const data = backend === "app-server"
-      ? await sendAppServerMessage(threadId, message, { dryRun, newTurn })
+      ? await sendTrackedMessage(threadId, message, { dryRun, newTurn })
       : sendDesktopMessage(threadId, message, { dryRun, waitMs, newTurn, keepFocus });
     success("send", data, json);
     if (!json) {
@@ -197,6 +216,7 @@ export async function main(argv) {
         : backend === "ui"
           ? `Submitted through Desktop UI for ${threadId}; delivery is unverified.`
           : `App Server accepted input for ${threadId} (turn ${data.turn_id}).`);
+      if (data.message_id) console.log(`message_id: ${data.message_id}`);
     }
   } catch (error) {
     fail(error, json);

@@ -117,6 +117,17 @@ UI方式には実行元ターミナルのAccessibility許可が必要です。�
 
 ## JSON契約
 
+app-server送信は、送信前にIDと本文を`$CODEX_HOME/codex-steer/messages/`（未指定時は`~/.codex`配下）へ記録します。ファイルは0600です。以前の送信やUI方式は取り込みません。
+
+```bash
+codex-steer history list <thread-id> --pending --json
+codex-steer history check <thread-id> <message-id> --json
+codex-steer history show <thread-id> <message-id> --include-text --json
+codex-steer history mark <thread-id> <message-id> --status applied --note '回帰テストが成功' --evidence results.xml --by reviewer --json
+```
+
+`check`は同じ`client_message_id`と本文ハッシュを受信履歴で照合します。`stored`は保存確認、`not_observed`は未確認、`conflict`はID/本文の不一致です。後続の発言があるだけで対応完了とはしません。`mark`は記録者による申告を履歴として残し、`applied`には根拠が必要です。未知の配送を自動再送する処理はありません。受付後にローカル記録更新だけが失敗した場合も、受付結果を保持して`journal_update_required:true`を返します。
+
 既存の`ok`・`command`・`data`形式を維持します。バックグラウンド方式の受付成功:
 
 ```json

@@ -12,6 +12,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { RpcClient } from "../src/rpc.mjs";
 import { sendAppServerMessage } from "../src/app-server.mjs";
 import { observeThread } from "../src/observe.mjs";
+import { getMessage, reconcileMessages } from "../src/journal.mjs";
 import { discoverRuntime, runtimePaths } from "../src/runtime.mjs";
 import { BUNDLED_CLI, BUNDLED_NODE } from "../src/wrapper.mjs";
 
@@ -210,6 +211,10 @@ try {
   assert.notEqual(cliReceipt.data.client_message_id, result.client_message_id);
   await modelOutput(stream => ({ type: "message", id: `msg-${stream.id}`, role: "assistant", status: "completed", content: [{ type: "output_text", text: "probe response 2" }] }));
   await checkUserMessageIdentity(thread.id, cliReceipt.data, "日本語\nprobe steer");
+  const journal = await getMessage(thread.id, cliReceipt.data.message_id, { home: root });
+  assert.equal(journal.client_message_id, cliReceipt.data.client_message_id);
+  const verifiedJournal = await reconcileMessages(thread.id, journal.id, { home: root }, { discover: () => discoverRuntime(root) });
+  assert.equal(verifiedJournal[0].verification.status, "stored");
   await desktop.request("turn/interrupt", { threadId: thread.id, turnId: turn.id });
   await idle(thread.id);
   console.log(JSON.stringify({ checkpoint: "CP1-CP3-protocol", result: "PASS", thread_id: thread.id, turn_id: turn.id, stale_turn_rejected: true, desktop_steer_client_id: true, cli_url_shorthand_client_id: true }));

@@ -1,6 +1,14 @@
 export const VERSION = "0.9.0";
 
 export const topics = {
+  history: {
+    title: "送った指示の配送と対応状況を追う",
+    when: "受付不明の送信を確認するとき、または未対応の指摘を洗い出すとき。",
+    usage: ["history list <THREAD> [--pending] [--include-text]", "history show <THREAD> <MESSAGE-ID> [--include-text]", "history check <THREAD> [MESSAGE-ID] [--include-text]", "history mark <THREAD> <MESSAGE-ID> --status acknowledged|applied|dismissed --note TEXT [--evidence REF ...] [--by NAME]"],
+    returns: "delivery_statusは受付、verification.status=storedは受信履歴との一致、responseは記録者が申告した対応状況です。これらを別々に返します。",
+    examples: ["codex-steer history list <THREAD> --pending --json", "codex-steer history check <THREAD> <MESSAGE-ID> --json", "codex-steer history mark <THREAD> <MESSAGE-ID> --status applied --note '対象の回帰テストが通過' --evidence test-results.xml --by reviewer --json"],
+    notes: ["この版以降のapp-server送信をCODEX_HOME/codex-steerに保存します。本文はローカルの0600ファイルに保存し、表示は --include-text 指定時のみ。", "IDは送信結果のmessage_id/client_message_idです。unknownでもIDを保存します。checkは照合だけで再送しません。", "not_observedは未配送の証明ではありません。storedもモデルの理解や反映を証明しません。", "appliedの申告には根拠参照が必須です。根拠の妥当性を自動認定する機能ではありません。UI方式は追跡対象外です。"],
+  },
   overview: {
     title: "別のAIと、Codexタスクの進行を共有する",
     when: "タスクを探す → 現状を読む → 指示を送る → 変化を確認する、という順で使います。",
@@ -52,7 +60,7 @@ export const topics = {
 export function helpData(topic = "overview") {
   const data = topics[topic];
   if (!data) throw new Error(`Unknown help topic: ${topic}. Run codex-steer help.`);
-  return { version: VERSION, topic, ...data };
+  return { version: VERSION, topic, ...data, ...(topic === "overview" ? { usage: [...data.usage, "history list|show|check|mark <THREAD> ..."] } : {}) };
 }
 
 export function renderHelp(data) {
