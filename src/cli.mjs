@@ -197,6 +197,8 @@ export async function main(argv) {
     const dryRun = takeFlag(args, "--dry-run");
     const backend = backendOption(args, DEFAULT_SEND_BACKEND);
     const newTurn = takeFlag(args, "--new-turn");
+    const directive = { source: takeOption(args, "--source", undefined), kind: takeOption(args, "--kind", undefined), evidence: takeOptions(args, "--evidence"), basedOn: takeOption(args, "--based-on", undefined) };
+    if (backend === "ui" && (directive.source || directive.kind || directive.evidence.length || directive.basedOn)) throw new Error("Directive metadata requires --backend app-server.");
     const keepFocus = takeFlag(args, "--keep-focus");
     const waitInput = takeOption(args, "--wait-ms", undefined);
     if (backend !== "ui" && (keepFocus || waitInput != null)) throw new Error("--keep-focus and --wait-ms require --backend ui.");
@@ -207,7 +209,7 @@ export async function main(argv) {
     if (message.trim() === "") throw new Error("send requires a non-empty message.");
     const threadId = normalizeThreadId(threadInput);
     const data = backend === "app-server"
-      ? await sendTrackedMessage(threadId, message, { dryRun, newTurn })
+      ? await sendTrackedMessage(threadId, message, { dryRun, newTurn, ...directive })
       : sendDesktopMessage(threadId, message, { dryRun, waitMs, newTurn, keepFocus });
     success("send", data, json);
     if (!json) {

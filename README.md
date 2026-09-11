@@ -117,6 +117,14 @@ UI方式には実行元ターミナルのAccessibility許可が必要です。�
 
 ## JSON契約
 
+指示をレビューや仮説として区別し、見た根拠と結び付けられます。
+
+```bash
+codex-steer send <thread-id> '競合の可能性を確認してください' --source claude --kind hypothesis --evidence results.xml --based-on <cursor> --json
+```
+
+`--kind`は`decision`（ユーザー決定の伝達）、`review`、`hypothesis`、`suggestion`です。メタデータ指定時だけ、ID・送信者・種類・根拠の短い説明を本文の前に付けます。`decision`という自己申告はユーザーの新しい承認ではありません。`--based-on`は`read/status`のcursorで、新しいユーザー入力やターン変更があれば送信を止めます。根拠ファイルの変更・消失も送信直前に検出します。URLは取得せず参照として保存します。確認と送信は別操作のため、直後の変更まで原子的に防ぐものではありません。
+
 app-server送信は、送信前にIDと本文を`$CODEX_HOME/codex-steer/messages/`（未指定時は`~/.codex`配下）へ記録します。ファイルは0600です。以前の送信やUI方式は取り込みません。
 
 ```bash

@@ -5,6 +5,7 @@ import { digest, fetchThread } from "./observe.mjs";
 import { readRecord, writeRecord, listRecords, withStoreLock } from "./store.mjs";
 import { discoverRuntime } from "./runtime.mjs";
 import { RpcClient } from "./rpc.mjs";
+import { prepareDirective } from "./directive.mjs";
 
 export async function getMessage(threadInput, id, options = {}) {
   const threadId = normalizeThreadId(threadInput);
@@ -26,14 +27,18 @@ export async function listMessages(threadInput, { includeText = false, pending =
 
 export async function sendTrackedMessage(threadInput, body, options = {}, { send = sendAppServerMessage, ...storage } = {}) {
   const threadId = normalizeThreadId(threadInput);
-  if (options.dryRun) return send(threadId, body, options);
+  if (options.dryRun) {
+    const prepared = await prepareDirective(threadId, body, options, "preview");
+    return { ...await send(threadId, prepared.wireText, options), ...(prepared.metadata ? { metadata: prepared.metadata, freshness_checked: false } : {}) };
+  }
   return withStoreLock(`message-${threadId}`, async () => {
     const id = randomUUID(), created = new Date().toISOString();
-    let entry = { schema: 1, id, client_message_id: id, thread_id: threadId, created_at: created, updated_at: created, body, wire_text: body,
-      message_sha256: digest(body), delivery_status: "unknown", sent: null, attempt_state: "prepared", response: { status: "unreported" } };
+    const prepared = await prepareDirective(threadId, body, options, id);
+    let entry = { schema: 1, id, client_message_id: id, thread_id: threadId, created_at: created, updated_at: created, body, wire_text: prepared.wireText, metadata: prepared.metadata,
+      message_sha256: digest(prepared.wireText), delivery_status: "unknown", sent: null, attempt_state: "prepared", response: { status: "unreported" } };
     await writeRecord("messages", id, entry, storage);
     try {
-      const receipt = await send(threadId, body, { ...options, clientMessageId: id });
+      const receipt = await send(threadId, prepared.wireText, { ...options, clientMessageId: id, beforeSend: prepared.beforeSend });
       entry = { ...entry, ...receipt, id, attempt_state: "finished", updated_at: new Date().toISOString() };
       try { await writeRecord("messages", id, entry, storage); } catch { return { ...receipt, message_id: id, journal_update_required: true }; }
       return { ...receipt, message_id: id };

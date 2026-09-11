@@ -79,3 +79,11 @@ test("command help explains purpose, results and examples without contacting Des
   const plain = spawnSync(process.execPath, ["bin/codex-steer.mjs", "read", "--help"], { encoding: "utf8" });
   assert.match(plain.stdout, /使い所:/); assert.match(plain.stdout, /確認できること:/);
 });
+
+test("metadata dry-run validates kind and evidence without exposing message text", () => {
+  const { result } = cli(["send", ID, "private body", "--dry-run", "--kind", "hypothesis", "--source", "claude-code"]);
+  assert.equal(result.data.metadata.kind, "hypothesis"); assert.equal(result.data.freshness_checked, false);
+  assert.equal(JSON.stringify(result).includes("private body"), false);
+  assert.equal(cli(["send", ID, "test", "--dry-run", "--kind", "typo"]).status, 1);
+  assert.equal(cli(["send", ID, "test", "--dry-run", "--kind", "review", "--backend", "ui"]).status, 1);
+});

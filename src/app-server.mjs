@@ -28,13 +28,14 @@ function verifyThread(thread, threadId) {
   if (!Array.isArray(thread.turns)) throw new Error("App Server did not return the task's turn state.");
 }
 
-export async function sendOnClient(client, threadId, message, { newTurn = false, subscribe, clientMessageId = randomUUID() } = {}) {
+export async function sendOnClient(client, threadId, message, { newTurn = false, subscribe, clientMessageId = randomUUID(), beforeSend } = {}) {
   const { thread } = await client.request("thread/read", { threadId, includeTurns: true });
   verifyThread(thread, threadId);
   const input = [{ type: "text", text: message }];
   if (!newTurn) {
     const turn = activeTurn(thread);
     if (!turn) throw new Error("The task has no unambiguous active turn. Use --new-turn for an idle task.");
+    await beforeSend?.(thread, client);
     // Desktop uses clientId on the resulting userMessage to render external
     // steering as a user bubble instead of just an anonymous "steered" marker.
     // This is a presentation/correlation ID, not a retry/idempotency guarantee.
@@ -51,13 +52,14 @@ export async function sendOnClient(client, threadId, message, { newTurn = false,
   const resumed = await client.request("thread/read", { threadId, includeTurns: true });
   verifyThread(resumed.thread, threadId);
   if (resumed.thread.status?.type !== "idle") throw new Error("Task became active while resuming. Nothing was sent.");
+  await beforeSend?.(resumed.thread, client);
   const clientUserMessageId = clientMessageId;
   const accepted = await client.request("turn/start", { threadId, input, clientUserMessageId }, { mutation: true });
   if (typeof accepted?.turn?.id !== "string") throw new RpcFailure("App Server did not confirm a turn ID. Do not retry automatically.", { code: "PROTOCOL_ERROR", uncertain: true });
   return { turn_id: accepted.turn.id, client_message_id: clientUserMessageId };
 }
 
-export async function sendAppServerMessage(threadInput, message, { dryRun = false, newTurn = false, clientMessageId = randomUUID(), connect = RpcClient.connect, discover = discoverRuntime, subscribe = ensureDesktopSubscription } = {}) {
+export async function sendAppServerMessage(threadInput, message, { dryRun = false, newTurn = false, clientMessageId = randomUUID(), beforeSend, connect = RpcClient.connect, discover = discoverRuntime, subscribe = ensureDesktopSubscription } = {}) {
   const threadId = normalizeThreadId(threadInput);
   if (typeof message !== "string" || !message.trim()) throw new Error("Message must not be empty.");
   const plan = { thread_id: threadId, backend: "app-server", delivery_action: newTurn ? "new-turn" : "steer", message_characters: [...message].length, dry_run: dryRun };
@@ -76,7 +78,7 @@ export async function sendAppServerMessage(threadInput, message, { dryRun = fals
     lock = candidate;
     await writeFile(path.join(lock, "owner"), token, { mode: 0o600 });
     client = await connect(paths.socket);
-    const receipt = await sendOnClient(client, threadId, message, { newTurn, clientMessageId, subscribe: id => subscribe(paths.control, id) });
+    const receipt = await sendOnClient(client, threadId, message, { newTurn, clientMessageId, beforeSend, subscribe: id => subscribe(paths.control, id) });
     result = { ...plan, ...receipt, sent: true, delivery_status: "accepted" };
     return result;
   } catch (error) {
