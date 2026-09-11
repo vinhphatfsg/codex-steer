@@ -1,6 +1,14 @@
 export const VERSION = "0.9.0";
 
 export const topics = {
+  instructions: {
+    title: "現在有効な指示を確認し、古い指示を訂正する",
+    when: "診断を撤回するとき、方針が変わったとき、長い会話で今の決定を確認するとき。",
+    usage: ["instructions list <THREAD> [--all]", "send <THREAD> <NEW-MESSAGE> --supersedes <MESSAGE-ID> [--expires-at ISO-TIMESTAMP]", "instructions retract <THREAD> <MESSAGE-ID> --reason TEXT [--source NAME] [--based-on CURSOR] [--new-turn] [--dry-run]"],
+    returns: "listは現在有効な指示の本文と、配送未確認の変更を返します。--allは置換済み・撤回済み・期限切れも含めます。",
+    examples: ["codex-steer instructions list <THREAD> --json", "codex-steer send <THREAD> '先ほどの診断を訂正します。原因は復帰処理です' --supersedes <MESSAGE-ID> --kind review --source claude-code --json", "codex-steer instructions retract <THREAD> <MESSAGE-ID> --reason '再計測で仮説を否定できた' --json"],
+    notes: ["IDはhistory listで確認します。同じタスクに送った指示だけを指定できます。", "置換・撤回は相手にもメッセージを送ります。元の履歴は削除しません。--dry-runは送信・保存しません。", "受付不明なら旧指示を確定撤回しません。history checkで保存を確認するまでpending_changesへ表示し、重ねて置換しません。", "--expires-atは時差付きISO日時。期限は補助側の有効一覧に適用され、相手の処理を自動停止するものではありません。", "受付・保存確認は、相手が方針変更を理解した証明ではありません。必要ならhistory markで明示的な応答を記録してください。"],
+  },
   history: {
     title: "送った指示の配送と対応状況を追う",
     when: "受付不明の送信を確認するとき、または未対応の指摘を洗い出すとき。",
@@ -44,7 +52,7 @@ export const topics = {
   send: {
     title: "実行中タスクに方針やレビューを伝える",
     when: "宛先と送る内容が決まったとき。停止中のタスクを続けるときだけ --new-turn を使います。",
-    usage: ["send <THREAD> <MESSAGE...> [--new-turn] [--dry-run] [--backend app-server|ui]", "send <THREAD> <MESSAGE...> [--source NAME] [--kind decision|review|hypothesis|suggestion] [--evidence FILE-OR-URL ...] [--based-on CURSOR]", "<THREAD> <MESSAGE...> [sendと同じオプション]"],
+    usage: ["send <THREAD> <MESSAGE...> [--new-turn] [--dry-run] [--backend app-server|ui]", "send <THREAD> <MESSAGE...> [--source NAME] [--kind decision|review|hypothesis|suggestion] [--evidence FILE-OR-URL ...] [--based-on CURSOR] [--supersedes MESSAGE-ID] [--expires-at ISO-TIMESTAMP]", "<THREAD> <MESSAGE...> [sendと同じオプション]"],
     returns: "acceptedはサーバーの受付です。処理完了や画面への表示を保証するものではありません。",
     examples: ["codex-steer send <THREAD> '失敗したテストの原因を先に確認してください' --dry-run --json", "codex-steer send <THREAD> '競合が原因か確認してください' --source claude --kind hypothesis --evidence results.xml --based-on <CURSOR> --json", "codex-steer send <THREAD> '続けてください' --new-turn --json", "printf '%s\\n' '理由' '変更方針' | codex-steer send <THREAD> -"],
     notes: ["MESSAGEに - を指定すると標準入力を読みます。本文中のオプション名は -- の後に置いてください。", "--kindはdecision=ユーザー決定の伝達、review=レビュー、hypothesis=未確定の仮説、suggestion=任意提案です。指定時は送信者・種類・根拠を本文の前に表示します。無指定なら従来の本文をそのまま送ります。", "decisionは送信者の分類で、新しいユーザー承認を作りません。元のユーザー指示を根拠として示してください。", "--based-onはread/statusのcursor。新しいユーザー入力やターン変更があれば送信を止めます。通常の進捗報告だけでは止めません。根拠ファイルも送信直前にハッシュ照合します。URLは参照のみです。", "dry-runではファイル根拠を読めますが、接続・鮮度確認・保存・送信は行いません。鮮度確認と送信の間の変更を原子的には防げません。", "既定はapp-server。UI操作は --backend ui を明示した場合だけです。--keep-focusと--wait-msはUI専用です。", "unknownは受付未確認です。history checkで確認し、自動再送しないでください。"],
@@ -60,7 +68,7 @@ export const topics = {
 export function helpData(topic = "overview") {
   const data = topics[topic];
   if (!data) throw new Error(`Unknown help topic: ${topic}. Run codex-steer help.`);
-  return { version: VERSION, topic, ...data, ...(topic === "overview" ? { usage: [...data.usage, "history list|show|check|mark <THREAD> ..."] } : {}) };
+  return { version: VERSION, topic, ...data, ...(topic === "overview" ? { usage: [...data.usage, "history list|show|check|mark <THREAD> ...", "instructions list|retract <THREAD> ..."] } : {}) };
 }
 
 export function renderHelp(data) {

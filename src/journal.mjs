@@ -25,13 +25,40 @@ export async function listMessages(threadInput, { includeText = false, pending =
     .sort((a, b) => a.created_at.localeCompare(b.created_at)).map(e => messageSummary(e, includeText));
 }
 
+export function instructionStates(entries, now = Date.now()) {
+  const states = new Map(entries.map(e => [e.id, { ...e, instruction_status: e.delivery_status === "not_sent" ? "not_sent" : e.delivery_status !== "accepted" ? "pending_delivery" : e.metadata?.retracts ? "withdrawal_notice" : e.metadata?.expires_at && Date.parse(e.metadata.expires_at) <= now ? "expired" : "active" }]));
+  for (const entry of entries) {
+    const target = states.get(entry.metadata?.supersedes ?? entry.metadata?.retracts);
+    if (!target) continue;
+    if (entry.delivery_status === "accepted") Object.assign(target, { instruction_status: entry.metadata.retracts ? "retracted" : "superseded", replaced_by: entry.id });
+    else if (entry.delivery_status !== "not_sent") target.pending_change_ids = [...target.pending_change_ids ?? [], entry.id];
+  }
+  return [...states.values()];
+}
+
+export async function listInstructions(threadInput, { all = false, ...options } = {}) {
+  const threadId = normalizeThreadId(threadInput), entries = instructionStates(await listMessages(threadId, { ...options, includeText: true }));
+  return { thread_id: threadId, instructions: entries.filter(e => all || e.instruction_status === "active"), pending_changes: entries.filter(e => e.instruction_status === "pending_delivery") };
+}
+
+async function validateReplacement(threadId, options, storage) {
+  const targetId = options.supersedes ?? options.retracts;
+  if (!targetId) return;
+  await getMessage(threadId, targetId, storage);
+  const entries = instructionStates(await listMessages(threadId, { ...storage, includeText: true }));
+  const target = entries.find(e => e.id === targetId);
+  if (!["active", "expired"].includes(target.instruction_status) || target.pending_change_ids?.length) throw new Error("Target instruction is inactive or has an unresolved delivery. Check history before replacing it.");
+}
+
 export async function sendTrackedMessage(threadInput, body, options = {}, { send = sendAppServerMessage, ...storage } = {}) {
   const threadId = normalizeThreadId(threadInput);
   if (options.dryRun) {
+    await validateReplacement(threadId, options, storage);
     const prepared = await prepareDirective(threadId, body, options, "preview");
     return { ...await send(threadId, prepared.wireText, options), ...(prepared.metadata ? { metadata: prepared.metadata, freshness_checked: false } : {}) };
   }
   return withStoreLock(`message-${threadId}`, async () => {
+    await validateReplacement(threadId, options, storage);
     const id = randomUUID(), created = new Date().toISOString();
     const prepared = await prepareDirective(threadId, body, options, id);
     let entry = { schema: 1, id, client_message_id: id, thread_id: threadId, created_at: created, updated_at: created, body, wire_text: prepared.wireText, metadata: prepared.metadata,

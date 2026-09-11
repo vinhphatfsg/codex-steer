@@ -117,6 +117,16 @@ UI方式には実行元ターミナルのAccessibility許可が必要です。�
 
 ## JSON契約
 
+有効な指示の確認と、訂正・撤回もCLIから扱えます。
+
+```bash
+codex-steer instructions list <thread-id> --json
+codex-steer send <thread-id> '診断を訂正します。原因は復帰処理です' --supersedes <message-id> --source claude-code --kind review --json
+codex-steer instructions retract <thread-id> <message-id> --reason '再計測で仮説が否定された' --json
+```
+
+置換・撤回は相手へ明示的に送信し、元履歴は残します。受付不明の場合は旧指示を有効なまま保留を表示し、`history check`で照合するまで次の置換を拒否します。`instructions list --all`で履歴を確認できます。`--expires-at`は時差付きISO日時で、期限後は有効一覧から除外します。既に進行中の作業を自動停止する機能ではありません。
+
 指示をレビューや仮説として区別し、見た根拠と結び付けられます。
 
 ```bash

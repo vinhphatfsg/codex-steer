@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { desktopDoctor, inspectDesktopUi, openDesktopThread, sendDesktopMessage } from "./desktop.mjs";
 import { normalizeThreadId, threadDeepLink } from "./thread-id.mjs";
 import { listLocalThreads } from "./thread-store.mjs";
-import { sendTrackedMessage, listMessages, getMessage, messageSummary, reconcileMessages, markMessage } from "./journal.mjs";
+import { sendTrackedMessage, listMessages, getMessage, messageSummary, reconcileMessages, markMessage, listInstructions } from "./journal.mjs";
 import { appServerDoctor, startDesktop } from "./launcher.mjs";
 import { VERSION, helpData, renderHelp } from "./help.mjs";
 import { observeThread, printObservation } from "./observe.mjs";
@@ -91,6 +91,25 @@ export async function main(argv) {
     }
 
     let command = args.shift();
+    if (command === "instructions") {
+      const action = args.shift();
+      if (action === "list") {
+        const all = takeFlag(args, "--all");
+        if (args.length !== 1) throw new Error("Expected: instructions list <THREAD> [--all].");
+        const data = await listInstructions(args[0], { all });
+        success("instructions.list", data, json);
+        if (!json) { for (const entry of data.instructions) console.log(`${entry.id}  ${entry.instruction_status}  ${entry.metadata?.source ?? "unspecified"}\n${entry.body}`); if (data.pending_changes.length) console.log(`配送未確認: ${data.pending_changes.map(e => e.id).join(", ")}`); }
+        return;
+      }
+      if (action !== "retract") throw new Error("See codex-steer help instructions.");
+      const reason = takeOption(args, "--reason", undefined), source = takeOption(args, "--source", undefined), basedOn = takeOption(args, "--based-on", undefined);
+      const dryRun = takeFlag(args, "--dry-run"), newTurn = takeFlag(args, "--new-turn");
+      if (args.length !== 2 || !reason?.trim()) throw new Error("Expected: instructions retract <THREAD> <MESSAGE-ID> --reason TEXT.");
+      const data = await sendTrackedMessage(args[0], reason, { retracts: args[1], source, basedOn, dryRun, newTurn });
+      success("instructions.retract", data, json);
+      if (!json) console.log(dryRun ? "撤回の送信プレビューです。" : `撤回を受け付けました。message_id: ${data.message_id}`);
+      return;
+    }
     if (command === "history") {
       const action = args.shift();
       const includeText = takeFlag(args, "--include-text");
@@ -197,8 +216,8 @@ export async function main(argv) {
     const dryRun = takeFlag(args, "--dry-run");
     const backend = backendOption(args, DEFAULT_SEND_BACKEND);
     const newTurn = takeFlag(args, "--new-turn");
-    const directive = { source: takeOption(args, "--source", undefined), kind: takeOption(args, "--kind", undefined), evidence: takeOptions(args, "--evidence"), basedOn: takeOption(args, "--based-on", undefined) };
-    if (backend === "ui" && (directive.source || directive.kind || directive.evidence.length || directive.basedOn)) throw new Error("Directive metadata requires --backend app-server.");
+    const directive = { source: takeOption(args, "--source", undefined), kind: takeOption(args, "--kind", undefined), evidence: takeOptions(args, "--evidence"), basedOn: takeOption(args, "--based-on", undefined), supersedes: takeOption(args, "--supersedes", undefined), expiresAt: takeOption(args, "--expires-at", undefined) };
+    if (backend === "ui" && (directive.source || directive.kind || directive.evidence.length || directive.basedOn || directive.supersedes || directive.expiresAt)) throw new Error("Directive metadata requires --backend app-server.");
     const keepFocus = takeFlag(args, "--keep-focus");
     const waitInput = takeOption(args, "--wait-ms", undefined);
     if (backend !== "ui" && (keepFocus || waitInput != null)) throw new Error("--keep-focus and --wait-ms require --backend ui.");
