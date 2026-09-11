@@ -23,21 +23,27 @@ codex-steer --json threads list --desktop-only --limit 20
 Preview before sending when the message or destination is uncertain:
 
 ```bash
-codex-steer --json send <thread-id> "message" --dry-run
+codex-steer --json send <thread-id> "message" --backend app-server --dry-run
 ```
 
 Send only after the user has identified the destination and message:
 
 ```bash
-codex-steer send <thread-id> "Focus on the failing tests first."
-printf '%s\n' 'Multiline message' | codex-steer send <thread-id> -
-codex-steer codex://threads/<thread-id> "Continue with the new constraint."
+codex-steer send <thread-id> "Focus on the failing tests first." --backend app-server
+printf '%s\n' 'Multiline message' | codex-steer send <thread-id> - --backend app-server
+codex-steer codex://threads/<thread-id> "Continue with the new constraint." --backend app-server
 ```
 
 Rules:
 
-- `send` is a live UI action that posts a user-visible message.
+- `send` submits a user message. The `app-server` backend uses the exact task and active turn IDs without navigating the UI. Each send includes `clientUserMessageId` for Desktop's user-bubble rendering; JSON receipts expose it as `client_message_id`. Steering bubble display was verified on Desktop 26.903.71938 with bundled CLI 0.153.4, including external-terminal sending. An accepted receipt alone does not certify that the UI rendered it. Do not resend an older message to repair its display.
+- Real Desktop validation is pending. Select a backend explicitly until CP4-CP6 in [checkpoints](../../../docs/checkpoints.md) pass; do not silently fall back to UI.
+- Background delivery requires Desktop to have been launched with `codex-steer desktop start`. If it is already running normally, finish current work and arrange a restart; do not kill it.
+- The Desktop wrapper must run directly with its bundled signed Node runtime. If `doctor` reports `bundled_wrapper_node:false`, finish current work and restart Desktop; do not invoke the wrapper through PATH's `node`. A ready connection alone does not certify Desktop MCP integration.
+- Use `--new-turn` only for an idle task. The wrapper establishes Desktop's subscription so approvals and questions survive the sender exiting.
 - Prefer `--json` when another agent will parse the result.
 - Do not send to a guessed thread ID.
 - Do not use UI scripting to bypass macOS permission prompts.
-- The command briefly activates Codex Desktop and requires Accessibility permission for the calling terminal app.
+- `delivery_status: accepted` means App Server accepted input, not that the model finished. For `unknown`, check the target task before retrying; never retry automatically.
+- Legacy UI delivery requires explicit `--backend ui`, briefly activates Desktop, and requires Accessibility permission for the calling terminal app. Side-chat routing is not guaranteed; `submitted_unverified` is not a delivery confirmation.
+- `--keep-focus` and `--wait-ms` are UI-only. Background delivery does not require Accessibility.

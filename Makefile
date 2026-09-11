@@ -1,6 +1,9 @@
 PREFIX ?= $(HOME)/.local
 
-.PHONY: check test install-local uninstall-local
+.PHONY: deps check test install-local uninstall-local
+
+deps:
+	npm ci --ignore-scripts
 
 check:
 	npm run check
@@ -8,7 +11,8 @@ check:
 test:
 	npm test
 
-install-local: check test
+install-local: deps
+	$(MAKE) check test
 	mkdir -p "$(PREFIX)/bin"
 	ln -sfn "$(CURDIR)/bin/codex-steer.mjs" "$(PREFIX)/bin/codex-steer"
 

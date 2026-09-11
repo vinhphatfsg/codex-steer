@@ -2,28 +2,36 @@ import { readFileSync } from "node:fs";
 import { desktopDoctor, inspectDesktopUi, openDesktopThread, sendDesktopMessage } from "./desktop.mjs";
 import { normalizeThreadId, threadDeepLink } from "./thread-id.mjs";
 import { listLocalThreads } from "./thread-store.mjs";
+import { sendAppServerMessage } from "./app-server.mjs";
+import { appServerDoctor, startDesktop } from "./launcher.mjs";
 
-const VERSION = "0.7.0";
+const VERSION = "0.8.0";
+// Switch to "app-server" only after CP4-CP6 real Desktop validation is recorded.
+const DEFAULT_SEND_BACKEND = null;
 
 const HELP = `codex-steer ${VERSION}
 
 Send steering messages to local Codex Desktop threads from a terminal.
 
 Usage:
-  codex-steer doctor [--json]
+  codex-steer doctor [--backend app-server|ui] [--json]
+  codex-steer desktop start [--dry-run] [--json]
   codex-steer threads list [--limit N] [--desktop-only] [--json]
   codex-steer thread resolve <UUID|codex://threads/...> [--json]
   codex-steer open <THREAD> [--json]
   codex-steer debug-ui <THREAD> [--wait-ms N] [--json]
-  codex-steer send <THREAD> <MESSAGE...> [--new-turn] [--keep-focus] [--dry-run] [--wait-ms N] [--json]
-  codex-steer <THREAD> <MESSAGE...> [--new-turn] [--keep-focus] [--dry-run] [--wait-ms N] [--json]
+  codex-steer send <THREAD> <MESSAGE...> [--backend app-server|ui] [--new-turn] [--dry-run] [--json]
+  codex-steer <THREAD> <MESSAGE...> [--backend app-server|ui] [--new-turn] [--dry-run] [--json]
 
 Use '-' as MESSAGE to read a multiline message from stdin.
+Use '--' before a message containing literal option names.
 
 Send options:
+  --backend    app-server for background delivery, ui for legacy Desktop automation.
+               Explicit selection is required until real Desktop validation passes.
   --new-turn    Submit as a normal new turn instead of steering an active turn.
-  --keep-focus  Leave Codex focused after sending; the default restores the previous app.
-  --wait-ms N   Wait for the deep link to load before submitting (0-30000).
+  --keep-focus  UI only: leave Codex focused after sending.
+  --wait-ms N   UI only: wait for the deep link to load before submitting (0-30000).
 `;
 
 function success(command, data, json) {
@@ -33,30 +41,40 @@ function success(command, data, json) {
 
 function fail(error, json) {
   const message = error instanceof Error ? error.message : String(error);
-  if (json) console.log(JSON.stringify({ ok: false, error: { message } }));
+  if (json) console.log(JSON.stringify({ ok: false, error: {
+    message, code: error.code, delivery_status: error.delivery_status,
+    sent: error.sent, thread_id: error.thread_id, rpc_code: error.rpc_code,
+  } }));
   else console.error(`codex-steer: ${message}`);
   process.exitCode = 1;
 }
 
 function takeOption(args, name, defaultValue) {
   const index = args.indexOf(name);
-  if (index === -1) return defaultValue;
+  if (index === -1 || (args.includes("--") && index > args.indexOf("--"))) return defaultValue;
   const value = args[index + 1];
-  if (value == null) throw new Error(`${name} requires a value.`);
+  if (value == null || value.startsWith("--")) throw new Error(`${name} requires a value.`);
   args.splice(index, 2);
   return value;
 }
 
 function takeFlag(args, name) {
   const index = args.indexOf(name);
-  if (index === -1) return false;
+  if (index === -1 || (args.includes("--") && index > args.indexOf("--"))) return false;
   args.splice(index, 1);
   return true;
 }
 
 function readMessage(parts) {
+  if (parts[0] === "--") parts.shift();
   if (parts.length === 1 && parts[0] === "-") return readFileSync(0, "utf8");
   return parts.join(" ");
+}
+
+function backendOption(args, fallback) {
+  const backend = takeOption(args, "--backend", fallback);
+  if (backend != null && !["app-server", "ui"].includes(backend)) throw new Error("--backend must be app-server or ui.");
+  return backend;
 }
 
 function printThreads(threads) {
@@ -87,16 +105,30 @@ export async function main(argv) {
 
     let command = args.shift();
     if (command === "doctor") {
-      const report = desktopDoctor();
+      const backend = backendOption(args, "app-server");
+      if (args.length) throw new Error(`Unexpected argument: ${args[0]}`);
+      const report = backend === "ui" ? desktopDoctor() : await appServerDoctor();
+      report.default_send_backend = DEFAULT_SEND_BACKEND;
+      report.rollout_status = DEFAULT_SEND_BACKEND ? "enabled" : "pending_real_desktop_validation";
       success("doctor", report, json);
       if (!json) {
-        console.log(report.ready ? "Desktop backend: ready" : "Desktop backend: not ready");
+        console.log(`${report.backend}: ${report.ready ? "ready" : "not ready"}`);
         for (const [name, ok] of Object.entries(report.checks)) {
           console.log(`  ${ok ? "ok" : "missing"}  ${name}`);
         }
         if (report.remediation) console.log(`\n${report.remediation}`);
       }
       if (!report.ready) process.exitCode = 1;
+      return;
+    }
+
+    if (command === "desktop") {
+      if (args.shift() !== "start") throw new Error("Expected: codex-steer desktop start");
+      const dryRun = takeFlag(args, "--dry-run");
+      if (args.length) throw new Error(`Unexpected argument: ${args[0]}`);
+      const data = await startDesktop({ dryRun });
+      success("desktop.start", data, json);
+      if (!json) console.log(dryRun ? "Dry run: would launch Desktop with the shared App Server wrapper." : "Desktop shared App Server is ready.");
       return;
     }
 
@@ -149,22 +181,28 @@ export async function main(argv) {
     }
 
     const dryRun = takeFlag(args, "--dry-run");
+    const backend = backendOption(args, DEFAULT_SEND_BACKEND ?? (dryRun ? "app-server" : null));
+    if (!backend) throw new Error("Background delivery is awaiting real Desktop validation. Select --backend app-server to test it, or --backend ui for legacy sending. No automatic UI fallback is used.");
     const newTurn = takeFlag(args, "--new-turn");
     const keepFocus = takeFlag(args, "--keep-focus");
-    const waitMs = Number.parseInt(takeOption(args, "--wait-ms", "1500"), 10);
+    const waitInput = takeOption(args, "--wait-ms", undefined);
+    if (backend !== "ui" && (keepFocus || waitInput != null)) throw new Error("--keep-focus and --wait-ms require --backend ui.");
+    const waitMs = Number(waitInput ?? "1500");
     const threadInput = args.shift();
     if (!threadInput) throw new Error("send requires a thread ID or codex://threads URL.");
     const message = readMessage(args);
     if (message.trim() === "") throw new Error("send requires a non-empty message.");
     const threadId = normalizeThreadId(threadInput);
-    const data = sendDesktopMessage(threadId, message, { dryRun, waitMs, newTurn, keepFocus });
+    const data = backend === "app-server"
+      ? await sendAppServerMessage(threadId, message, { dryRun, newTurn })
+      : sendDesktopMessage(threadId, message, { dryRun, waitMs, newTurn, keepFocus });
     success("send", data, json);
     if (!json) {
       console.log(dryRun
         ? `Dry run: would ${newTurn ? "start a new turn in" : "steer"} ${threadId} (${data.message_characters} characters)`
-        : newTurn
-          ? `Sent a new-turn message to ${threadId}`
-          : `Sent steering message to ${threadId}`);
+        : backend === "ui"
+          ? `Submitted through Desktop UI for ${threadId}; delivery is unverified.`
+          : `App Server accepted input for ${threadId} (turn ${data.turn_id}).`);
     }
   } catch (error) {
     fail(error, json);

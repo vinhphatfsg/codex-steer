@@ -1,6 +1,6 @@
 import { open, readdir, stat } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
+import { codexHome } from "./runtime.mjs";
 
 const UUID_IN_FILENAME = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i;
 
@@ -36,7 +36,7 @@ async function readSessionMetadata(filePath) {
 export async function listLocalThreads({
   limit = 20,
   desktopOnly = false,
-  sessionsRoot = path.join(os.homedir(), ".codex", "sessions"),
+  sessionsRoot = path.join(codexHome(), "sessions"),
 } = {}) {
   const files = [];
   await walk(sessionsRoot, files);

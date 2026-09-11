@@ -203,5 +203,5 @@ export function sendDesktopMessage(
     throw new Error(result.stderr.trim() || "Codex Desktop did not accept the steering message.");
   }
 
-  return { ...plan, dry_run: false, sent: true };
+  return { ...plan, dry_run: false, sent: null, delivery_status: "submitted_unverified" };
 }
