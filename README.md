@@ -4,13 +4,13 @@
 
 ## 現在の検証段階
 
-v0.8.0ではバックグラウンド送信を追加しています。自動テストと同梱CLIを使った隔離結合テストに加え、実際のDesktopでの再起動・MCP・画面状態・復旧確認が必要です。**実機確認が終わるまで送信時の`--backend`指定を必須とし、標準方式への切り替えを保留しています。** 検証状況と残りの手順は[チェックポイント](docs/checkpoints.md)を参照してください。
+**送信の標準はバックグラウンド方式の`app-server`です。`--backend app-server`は省略できます。** 従来のUI方式は`--backend ui`で明示的に選択します。サイドチャット・下書きの維持と通常起動への復旧には未確認項目があります。検証状況と残りの手順は[チェックポイント](docs/checkpoints.md)を参照してください。
 
 初回の実機起動では内蔵`codex_app` MCPがコード署名の確認で失敗しました。ラッパーもDesktop同梱の署名付きNodeで起動するよう修正し、再起動後に内蔵MCPの復旧を確認しています。実タスクの未ロード再開・steer・自動承認・質問回答の往復を確認済みです。サイドチャット・下書きの維持と通常起動への復旧確認が残っています。
 
 ```bash
-codex-steer send <thread-id> "方針を変更してください" --backend app-server
-codex-steer <thread-id> "方針を変更してください" --backend app-server
+codex-steer send <thread-id> "方針を変更してください"
+codex-steer <thread-id> "方針を変更してください"
 ```
 
 `app-server`方式は入力欄・キー入力・クリップボード・画面遷移を使いません。接続失敗時にもUI方式へ自動切り替えしません。
@@ -67,19 +67,19 @@ codex-steer threads list --desktop-only --limit 20 --json
 codex-steer thread resolve codex://threads/<thread-id>
 
 # 送信前のプレビュー。接続・再開・画面操作を行いません。
-codex-steer send <thread-id> "メッセージ" --backend app-server --dry-run --json
+codex-steer send <thread-id> "メッセージ" --dry-run --json
 
 # 実行中ターンへの追加入力。
-codex-steer send <thread-id> "メッセージ" --backend app-server --json
+codex-steer send <thread-id> "メッセージ" --json
 
 # 停止中、またはまだロードしていないタスクの再開。
-codex-steer send <thread-id> "続きをお願いします" --new-turn --backend app-server --json
+codex-steer send <thread-id> "続きをお願いします" --new-turn --json
 
 # 複数行を標準入力から送信。
-printf '%s\n' '1. 原因を調査' '2. 結果を説明' | codex-steer send <thread-id> - --backend app-server
+printf '%s\n' '1. 原因を調査' '2. 結果を説明' | codex-steer send <thread-id> -
 
 # メッセージ中にオプション名を含める場合。
-codex-steer send <thread-id> --backend app-server -- '--new-turn の処理を確認してください'
+codex-steer send <thread-id> -- '--new-turn の処理を確認してください'
 ```
 
 同一タスクへの同時送信は拒否します。`--new-turn`は実行中なら拒否し、再開後にも状態を確認します。ただしApp Serverの`turn/start`には「停止中の場合だけ開始する」原子的な条件指定がなく、確認直後にDesktop側が同時送信した場合、同じタスクの実行中ターンへの追加入力として扱われる可能性があります。受付結果は入力の受付を表し、新規ターンの排他的確保や処理完了を保証しません。

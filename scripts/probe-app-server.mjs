@@ -189,13 +189,14 @@ try {
   // server's Desktop notification and persisted item, not only the steer ACK.
   await modelOutput(stream => ({ type: "message", id: `msg-${stream.id}`, role: "assistant", status: "completed", content: [{ type: "output_text", text: "probe response" }] }));
   await checkUserMessageIdentity(thread.id, result, "日本語\nprobe steer");
-  // Exercise the actual CLI in another cwd, including URL shorthand and argv
-  // text. A second identical message must retain its own identity, too.
-  const cliSend = await promisify(execFile)(process.execPath, [fileURLToPath(new URL("../bin/codex-steer.mjs", import.meta.url)), `codex://threads/${thread.id}`, "日本語\nprobe steer", "--backend", "app-server", "--json"], {
+  // Exercise the default backend in another cwd, including URL shorthand and
+  // argv text. A second identical message must retain its own identity, too.
+  const cliSend = await promisify(execFile)(process.execPath, [fileURLToPath(new URL("../bin/codex-steer.mjs", import.meta.url)), `codex://threads/${thread.id}`, "日本語\nprobe steer", "--json"], {
     cwd: root, env: { ...process.env, CODEX_HOME: root }, timeout: 15000,
   });
   const cliReceipt = JSON.parse(cliSend.stdout);
   assert.equal(cliReceipt.ok, true);
+  assert.equal(cliReceipt.data.backend, "app-server");
   assert.equal(cliReceipt.data.thread_id, thread.id);
   assert.notEqual(cliReceipt.data.client_message_id, result.client_message_id);
   await modelOutput(stream => ({ type: "message", id: `msg-${stream.id}`, role: "assistant", status: "completed", content: [{ type: "output_text", text: "probe response 2" }] }));

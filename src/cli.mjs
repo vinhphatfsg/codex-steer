@@ -6,8 +6,7 @@ import { sendAppServerMessage } from "./app-server.mjs";
 import { appServerDoctor, startDesktop } from "./launcher.mjs";
 
 const VERSION = "0.8.0";
-// Switch to "app-server" only after CP4-CP6 real Desktop validation is recorded.
-const DEFAULT_SEND_BACKEND = null;
+const DEFAULT_SEND_BACKEND = "app-server";
 
 const HELP = `codex-steer ${VERSION}
 
@@ -27,8 +26,8 @@ Use '-' as MESSAGE to read a multiline message from stdin.
 Use '--' before a message containing literal option names.
 
 Send options:
-  --backend    app-server for background delivery, ui for legacy Desktop automation.
-               Explicit selection is required until real Desktop validation passes.
+  --backend     app-server (default) for background delivery, ui for legacy Desktop automation.
+                UI delivery requires --backend ui; no automatic fallback.
   --new-turn    Submit as a normal new turn instead of steering an active turn.
   --keep-focus  UI only: leave Codex focused after sending.
   --wait-ms N   UI only: wait for the deep link to load before submitting (0-30000).
@@ -109,7 +108,7 @@ export async function main(argv) {
       if (args.length) throw new Error(`Unexpected argument: ${args[0]}`);
       const report = backend === "ui" ? desktopDoctor() : await appServerDoctor();
       report.default_send_backend = DEFAULT_SEND_BACKEND;
-      report.rollout_status = DEFAULT_SEND_BACKEND ? "enabled" : "pending_real_desktop_validation";
+      report.rollout_status = "enabled";
       success("doctor", report, json);
       if (!json) {
         console.log(`${report.backend}: ${report.ready ? "ready" : "not ready"}`);
@@ -181,8 +180,7 @@ export async function main(argv) {
     }
 
     const dryRun = takeFlag(args, "--dry-run");
-    const backend = backendOption(args, DEFAULT_SEND_BACKEND ?? (dryRun ? "app-server" : null));
-    if (!backend) throw new Error("Background delivery is awaiting real Desktop validation. Select --backend app-server to test it, or --backend ui for legacy sending. No automatic UI fallback is used.");
+    const backend = backendOption(args, DEFAULT_SEND_BACKEND);
     const newTurn = takeFlag(args, "--new-turn");
     const keepFocus = takeFlag(args, "--keep-focus");
     const waitInput = takeOption(args, "--wait-ms", undefined);
