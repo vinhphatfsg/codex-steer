@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import net from "node:net";
 import { randomUUID } from "node:crypto";
 import WebSocket from "ws";
+import { VERSION } from "./help.mjs";
 
 export class RpcFailure extends Error {
   constructor(message, { code = "CONNECTION_FAILED", uncertain = false, rpcCode } = {}) {
@@ -69,7 +70,7 @@ export class RpcClient extends EventEmitter {
     const client = new RpcClient(await connectSocket(socketPath, options), options);
     try {
       client.initialization = await client.request("initialize", {
-        clientInfo: { name: "codex_steer", title: "Codex Steer", version: "0.8.0" },
+        clientInfo: { name: "codex_steer", title: "Codex Steer", version: VERSION },
         capabilities: { experimentalApi: true },
       });
       client.notify("initialized", {});

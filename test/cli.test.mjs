@@ -67,3 +67,15 @@ test("unknown backend and empty messages fail before doing any work", () => {
   assert.equal(cli(["send", ID, "x", "--backend", "typo"]).status, 1);
   assert.equal(cli(["send", ID, "", "--backend", "app-server", "--dry-run"]).status, 1);
 });
+
+test("command help explains purpose, results and examples without contacting Desktop", () => {
+  for (const topic of ["read", "status", "watch", "send", "doctor", "desktop", "threads", "thread", "open", "debug-ui"]) {
+    for (const args of [["help", topic], [topic, "--help"]]) {
+      const { status, result } = cli(args);
+      assert.equal(status, 0); assert.equal(result.command, "help");
+      assert.equal(result.data.topic, topic); assert.ok(result.data.when); assert.ok(result.data.returns); assert.ok(result.data.examples.length);
+    }
+  }
+  const plain = spawnSync(process.execPath, ["bin/codex-steer.mjs", "read", "--help"], { encoding: "utf8" });
+  assert.match(plain.stdout, /使い所:/); assert.match(plain.stdout, /確認できること:/);
+});

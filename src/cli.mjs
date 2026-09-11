@@ -4,34 +4,10 @@ import { normalizeThreadId, threadDeepLink } from "./thread-id.mjs";
 import { listLocalThreads } from "./thread-store.mjs";
 import { sendAppServerMessage } from "./app-server.mjs";
 import { appServerDoctor, startDesktop } from "./launcher.mjs";
+import { VERSION, helpData, renderHelp } from "./help.mjs";
+import { observeThread, printObservation } from "./observe.mjs";
 
-const VERSION = "0.8.0";
 const DEFAULT_SEND_BACKEND = "app-server";
-
-const HELP = `codex-steer ${VERSION}
-
-Send steering messages to local Codex Desktop threads from a terminal.
-
-Usage:
-  codex-steer doctor [--backend app-server|ui] [--json]
-  codex-steer desktop start [--dry-run] [--json]
-  codex-steer threads list [--limit N] [--desktop-only] [--json]
-  codex-steer thread resolve <UUID|codex://threads/...> [--json]
-  codex-steer open <THREAD> [--json]
-  codex-steer debug-ui <THREAD> [--wait-ms N] [--json]
-  codex-steer send <THREAD> <MESSAGE...> [--backend app-server|ui] [--new-turn] [--dry-run] [--json]
-  codex-steer <THREAD> <MESSAGE...> [--backend app-server|ui] [--new-turn] [--dry-run] [--json]
-
-Use '-' as MESSAGE to read a multiline message from stdin.
-Use '--' before a message containing literal option names.
-
-Send options:
-  --backend     app-server (default) for background delivery, ui for legacy Desktop automation.
-                UI delivery requires --backend ui; no automatic fallback.
-  --new-turn    Submit as a normal new turn instead of steering an active turn.
-  --keep-focus  UI only: leave Codex focused after sending.
-  --wait-ms N   UI only: wait for the deep link to load before submitting (0-30000).
-`;
 
 function success(command, data, json) {
   if (json) console.log(JSON.stringify({ ok: true, command, data }));
@@ -98,11 +74,31 @@ export async function main(argv) {
       return;
     }
     if (args.length === 0 || takeFlag(args, "--help") || args[0] === "help") {
-      console.log(HELP);
+      if (args[0] === "help") args.shift();
+      const candidate = args[0] ?? "overview";
+      const topic = /^(codex:\/\/|[0-9a-f]{8}-)/i.test(candidate) ? "send" : candidate;
+      const data = helpData(topic);
+      success("help", data, json);
+      if (!json) console.log(renderHelp(data));
       return;
     }
 
     let command = args.shift();
+    if (["read", "status", "watch"].includes(command)) {
+      const options = command === "status" ? {} : {
+        since: takeOption(args, "--since", undefined),
+        limit: Number(takeOption(args, "--limit", "50")),
+        maxChars: Number(takeOption(args, "--max-chars", "2000")),
+        includeOutput: takeFlag(args, "--include-output"),
+      };
+      if (command === "watch") Object.assign(options, { watch: true, until: takeOption(args, "--until", "change"), timeoutMs: Number(takeOption(args, "--timeout-ms", "30000")), pollMs: Number(takeOption(args, "--poll-ms", "1000")) });
+      if (args.length !== 1) throw new Error(`Expected: ${command} <THREAD>. See codex-steer help ${command}.`);
+      const data = await observeThread(args[0], options);
+      if (command === "status") delete data.events;
+      success(command, data, json);
+      if (!json) printObservation(data, command === "status");
+      return;
+    }
     if (command === "doctor") {
       const backend = backendOption(args, "app-server");
       if (args.length) throw new Error(`Unexpected argument: ${args[0]}`);

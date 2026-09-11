@@ -58,6 +58,21 @@ Desktopには、その起動に限定して`CODEX_CLI_PATH`でラッパーを指
 
 ## コマンド
 
+`codex-steer help` は用途別の入口です。`codex-steer read --help` のように各コマンドから使い所・確認できること・例を読めます。`help read --json` は同じ説明を構造化JSONで返します。
+
+別AIからレビューするときは、まず現状を読み、返されたcursorを次回へ引き継ぎます。
+
+```bash
+codex-steer status <thread-id> --json
+codex-steer read <thread-id> --json
+codex-steer read <thread-id> --since <cursor> --include-output --json
+codex-steer watch <thread-id> --until idle --timeout-ms 60000 --json
+```
+
+`read`は初回に直近50項目、`--since`指定時は新規・更新項目を返します。実行中コマンドが完了した場合も更新として届きます。`has_more:true`なら返されたcursorで続きを読みます。出力本文は`--include-output`指定時のみ、内部推論は常に除外します。`watch`は既定1秒間隔の読み取りで変化を待ち、条件成立または時間切れで一度返します。購読・再開・承認回答は行いません。`notLoaded`は未ロードで、観測してもそのままです。
+
+機能別の方針と検証条件は[補助機能の設計](docs/assistance-design.md)を参照してください。
+
 ```bash
 # 環境診断。背景方式にはAccessibilityは不要です。
 codex-steer doctor --json

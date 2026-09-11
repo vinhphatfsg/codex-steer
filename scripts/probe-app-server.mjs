@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import { RpcClient } from "../src/rpc.mjs";
 import { sendAppServerMessage } from "../src/app-server.mjs";
+import { observeThread } from "../src/observe.mjs";
 import { discoverRuntime, runtimePaths } from "../src/runtime.mjs";
 import { BUNDLED_CLI, BUNDLED_NODE } from "../src/wrapper.mjs";
 
@@ -166,6 +167,9 @@ async function checkUserMessageIdentity(threadId, receipt, expectedText) {
 async function approval(threadId, turnId, marker) {
   await modelTool("exec_command", { cmd: "printf probe", sandbox_permissions: "require_escalated", justification: "Isolated approval routing test" }, marker);
   const request = await until(() => desktop.requests.find(r => r.method === "item/commandExecution/requestApproval" && r.params.threadId === threadId && r.params.turnId === turnId), "Desktop approval request");
+  const observed = await observeThread(threadId, { watch: true, until: "attention", timeoutMs: 1000 }, { discover: () => discoverRuntime(root) });
+  assert.equal(observed.timed_out, false);
+  assert.ok(observed.attention.includes("waitingOnApproval"));
   desktop.respond(request, { decision: "decline" });
   await desktop.request("turn/interrupt", { threadId, turnId });
   await idle(threadId);
@@ -182,6 +186,8 @@ try {
   const read = await cli.request("thread/read", { threadId: thread.id, includeTurns: true });
   assert.equal(read.thread.status.type, "active");
   assert.equal(read.thread.turns.at(-1).id, turn.id);
+  const observation = await observeThread(thread.id, {}, { discover: () => discoverRuntime(root) });
+  assert.equal(observation.active_turn_id, turn.id);
   const result = await sendAppServerMessage(thread.id, "日本語\nprobe steer", { discover: () => discoverRuntime(root) });
   assert.equal(result.turn_id, turn.id);
   await assert.rejects(cli.request("turn/steer", { threadId: thread.id, expectedTurnId: "stale", input: [{ type: "text", text: "must reject" }] }), { code: "RPC_REJECTED" });
@@ -189,6 +195,9 @@ try {
   // server's Desktop notification and persisted item, not only the steer ACK.
   await modelOutput(stream => ({ type: "message", id: `msg-${stream.id}`, role: "assistant", status: "completed", content: [{ type: "output_text", text: "probe response" }] }));
   await checkUserMessageIdentity(thread.id, result, "日本語\nprobe steer");
+  const delta = await observeThread(thread.id, { since: observation.cursor }, { discover: () => discoverRuntime(root) });
+  assert.ok(delta.events.some(e => e.client_message_id === result.client_message_id));
+  assert.ok(delta.events.every(e => e.type !== "reasoning"));
   // Exercise the default backend in another cwd, including URL shorthand and
   // argv text. A second identical message must retain its own identity, too.
   const cliSend = await promisify(execFile)(process.execPath, [fileURLToPath(new URL("../bin/codex-steer.mjs", import.meta.url)), `codex://threads/${thread.id}`, "日本語\nprobe steer", "--json"], {
@@ -215,6 +224,8 @@ try {
   const coldClient = await external();
   const stored = (await coldClient.request("thread/read", { threadId: thread.id, includeTurns: true })).thread;
   assert.equal(stored.status.type, "notLoaded");
+  const coldObservation = await observeThread(thread.id, {}, { discover: () => discoverRuntime(root) });
+  assert.equal(coldObservation.status, "notLoaded", "Observation never resumes a cold task");
   assert.equal(stored.turns.flatMap(t => t.items).filter(item => item.type === "userMessage" && item.clientId === next.client_message_id).length, 1, "User message identity survives server restart");
   const cold = await sendAppServerMessage(thread.id, "probe cold new turn", { newTurn: true, discover: () => discoverRuntime(root) });
   await approval(thread.id, cold.turn_id, "probe cold new turn");
