@@ -91,17 +91,20 @@ export function readSnapshot(thread, { since, limit = 50, maxChars = 2000, inclu
     omitted_older_events: old ? 0 : Math.max(0, s.events.length - limit), observed_at: new Date().toISOString() };
 }
 
-export async function fetchThread(client, threadId) {
-  const { thread } = await client.request("thread/read", { threadId, includeTurns: true });
+export async function fetchThread(client, threadId, metadata) {
+  let thread = metadata ?? (await client.request("thread/read", { threadId, includeTurns: false })).thread;
   if (thread?.id !== threadId || !Array.isArray(thread.turns)) throw new Error("App Server returned invalid task history.");
-  if (thread.historyMode === "paginated" || thread.turns.some(t => t.itemsView && t.itemsView !== "full")) {
+  if (thread.historyMode === "paginated") {
     const turns = [], seen = new Set(); let cursor;
     do {
       const page = await client.request("thread/turns/list", { threadId, itemsView: "full", sortDirection: "asc", limit: 100, ...(cursor ? { cursor } : {}) });
       if (!Array.isArray(page.data) || (page.nextCursor && seen.has(page.nextCursor))) throw new Error("Invalid history pagination.");
       turns.push(...page.data); cursor = page.nextCursor; seen.add(cursor);
     } while (cursor);
-    thread.turns = turns;
+    thread = { ...thread, turns };
+  } else {
+    thread = (await client.request("thread/read", { threadId, includeTurns: true })).thread;
+    if (thread?.id !== threadId || !Array.isArray(thread.turns)) throw new Error("App Server returned invalid task history.");
   }
   return thread;
 }

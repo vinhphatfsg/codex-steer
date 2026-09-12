@@ -65,7 +65,7 @@ test("watch times out quietly, surfaces approval flags, and closes on errors", a
 test("paginated history is hydrated without subscription; incomplete pages fail closed", async () => {
   const base = { ...thread([]), historyMode: "paginated" };
   const methods = [];
-  const client = { async request(method, p) { methods.push(method); if (method === "thread/read") return { thread: base }; return { data: [{ id: p.cursor ? "t2" : "t1", status: "completed", items: [], itemsView: "full" }], nextCursor: p.cursor ? null : "next" }; } };
+  const client = { async request(method, p) { methods.push(method); if (method === "thread/read") { assert.equal(p.includeTurns, false); return { thread: base }; } return { data: [{ id: p.cursor ? "t2" : "t1", status: "completed", items: [], itemsView: "full" }], nextCursor: p.cursor ? null : "next" }; } };
   assert.equal((await fetchThread(client, ID)).turns.length, 2);
   assert.deepEqual(methods, ["thread/read", "thread/turns/list", "thread/turns/list"]);
   assert.throws(() => readSnapshot({ ...base, turns: [{ id: "t", itemsView: "summary", items: [] }] }), /Incomplete/);
