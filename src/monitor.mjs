@@ -2,7 +2,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { normalizeThreadId } from "./thread-id.mjs";
 import { discoverRuntime } from "./runtime.mjs";
 import { RpcClient } from "./rpc.mjs";
-import { decodeCursor, fetchThread, readSnapshot } from "./observe.mjs";
+import { decodeCursor, readOnClient } from "./observe.mjs";
 
 // The consumer owns the watch lifetime and decides whether an event needs action.
 // Advancing only after onChange resolves keeps a slow consumer from losing pages.
@@ -18,7 +18,7 @@ export async function streamThread(threadInput, options, onChange, { discover = 
   try {
     let cursor = options.since;
     while (!signal?.aborted) {
-      const data = readSnapshot(await fetchThread(client, threadId), { ...options, since: cursor });
+      const data = await readOnClient(client, threadId, { ...options, since: cursor });
       if (signal?.aborted) break;
       // Without --since the first read establishes a silent baseline.
       if (cursor && data.changed) await onChange({ ...data, reason: "change" });

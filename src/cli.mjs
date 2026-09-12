@@ -180,7 +180,9 @@ export async function main(argv) {
       return;
     }
     if (["read", "status", "watch"].includes(command)) {
-      const options = command === "status" ? {} : {
+      const fullHistory = takeFlag(args, "--full-history");
+      const options = command === "status" ? { fullHistory } : {
+        fullHistory,
         since: takeOption(args, "--since", undefined),
         limit: Number(takeOption(args, "--limit", "50")),
         maxChars: Number(takeOption(args, "--max-chars", "2000")),

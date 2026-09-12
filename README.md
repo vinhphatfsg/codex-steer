@@ -79,6 +79,18 @@ codex-steer watch <thread-id> --until idle --timeout-ms 60000 --json
 
 `read`は初回に直近50項目、`--since`指定時は新規・更新項目を返します。実行中コマンドが完了した場合も更新として届きます。`has_more:true`なら返されたcursorで続きを読みます。出力本文は`--include-output`指定時のみ、内部推論は常に除外します。`watch`は既定1秒間隔の読み取りで変化を待ち、条件成立または時間切れで一度返します。購読・再開・承認回答は行いません。`notLoaded`は未ロードで、観測してもそのままです。
 
+0.10.0から、通常のread/status/watchは必要な項目ページだけを取得します。差分0件のたびに過去全文を読み直す処理をなくしました。初回に実行中ターンがあれば、そのターンの項目を調べ、表示範囲から外れた実行中コマンドも追跡します。以降は新着と追跡項目のページを読みます。
+
+`history_scope:"tail-and-tracked-items"`は、ターンの並び・末尾・追跡項目を確認した範囲を表します。過去全文の書き換えまで照合したい場合は`--full-history`を指定します。このモードと古い形式のタスクは全取得が必要で、差分取得より遅くなります。表示件数はどちらも`--limit`で指定します。`omitted_older_events:null`は、省略した古い項目の正確な件数を数えていないという意味です。
+
+旧v1 cursorの未読差分は`read --full-history --since <V1-CURSOR>`で継続できます。高速方式へ切り替える場合は、`--since`なしの`read`で現状をレビューし、返されたv2 cursorを保存してください。v1/v2の混在はエラーになります。`has_more:true`なら`changed:false`でも読み進め、読み終えてから判断・送信します。`running_commands_complete:false`も読み残しを示します。
+
+[設計](docs/read-performance-design.md)と[実測結果](docs/read-performance-results.md)を記録しています。手元のタスクでも、次のコマンドでCLI起動込みの最大時間を検証できます。1回でも1秒以上なら終了コード1になります。保存するのは時間と件数だけです。
+
+```sh
+npm run benchmark:read -- <thread-id> --samples 50 --max-ms 1000
+```
+
 機能別の方針と検証条件は[補助機能の設計](docs/assistance-design.md)を参照してください。
 
 ```bash

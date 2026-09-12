@@ -64,6 +64,7 @@ let diagnostics = "";
 const peers = new Set();
 const streams = [];
 let providerRequests = 0;
+const deltaTimings = [];
 const provider = createServer(async (request, response) => {
   const chunks = [];
   for await (const chunk of request) chunks.push(chunk);
@@ -166,6 +167,19 @@ async function checkUserMessageIdentity(threadId, receipt, expectedText) {
   assert.equal(messages[0].id, notification.params.item.id);
 }
 
+async function measureChangedRead(threadId, since, label) {
+  const started = performance.now();
+  const { stdout } = await promisify(execFile)(process.execPath, [fileURLToPath(new URL("../bin/codex-steer.mjs", import.meta.url)), "read", threadId, "--since", since, "--json"], {
+    cwd: root, env: { ...process.env, CODEX_HOME: root }, timeout: 15000,
+  });
+  const ms = performance.now() - started, { ok, data } = JSON.parse(stdout);
+  assert.equal(ok, true); assert.equal(data.history_scope, "tail-and-tracked-items");
+  assert.equal(data.changed, true); assert.ok(data.events.length > 0);
+  assert.ok(ms < 1000, `${label}: changed read took ${ms.toFixed(2)} ms (must be < 1000 ms)`);
+  deltaTimings.push({ label, ms: Math.round(ms * 100) / 100, events: data.events.length });
+  return data;
+}
+
 async function approval(threadId, turnId, marker) {
   await modelTool("exec_command", { cmd: "printf probe", sandbox_permissions: "require_escalated", justification: "Isolated approval routing test" }, marker);
   const request = await until(() => desktop.requests.find(r => r.method === "item/commandExecution/requestApproval" && r.params.threadId === threadId && r.params.turnId === turnId), "Desktop approval request");
@@ -197,7 +211,7 @@ try {
   // server's Desktop notification and persisted item, not only the steer ACK.
   await modelOutput(stream => ({ type: "message", id: `msg-${stream.id}`, role: "assistant", status: "completed", content: [{ type: "output_text", text: "probe response" }] }));
   await checkUserMessageIdentity(thread.id, result, "日本語\nprobe steer");
-  const delta = await observeThread(thread.id, { since: observation.cursor }, { discover: () => discoverRuntime(root) });
+  const delta = await measureChangedRead(thread.id, observation.cursor, "first-user-input");
   assert.ok(delta.events.some(e => e.client_message_id === result.client_message_id));
   assert.ok(delta.events.every(e => e.type !== "reasoning"));
   // Exercise the default backend in another cwd, including URL shorthand and
@@ -212,6 +226,8 @@ try {
   assert.notEqual(cliReceipt.data.client_message_id, result.client_message_id);
   await modelOutput(stream => ({ type: "message", id: `msg-${stream.id}`, role: "assistant", status: "completed", content: [{ type: "output_text", text: "probe response 2" }] }));
   await checkUserMessageIdentity(thread.id, cliReceipt.data, "日本語\nprobe steer");
+  const secondDelta = await measureChangedRead(thread.id, delta.cursor, "second-user-input");
+  assert.ok(secondDelta.events.some(e => e.client_message_id === cliReceipt.data.client_message_id));
   const journal = await getMessage(thread.id, cliReceipt.data.message_id, { home: root });
   assert.equal(journal.client_message_id, cliReceipt.data.client_message_id);
   const verifiedJournal = await reconcileMessages(thread.id, journal.id, { home: root }, { discover: () => discoverRuntime(root) });
@@ -225,12 +241,26 @@ try {
   assert.equal(typedEntry.metadata.supersedes, journal.id);
   await modelOutput(stream => ({ type: "message", id: `msg-${stream.id}`, role: "assistant", status: "completed", content: [{ type: "output_text", text: "probe response 3" }] }));
   await checkUserMessageIdentity(thread.id, typed, typedEntry.wire_text);
+  const typedDelta = await measureChangedRead(thread.id, fresh.cursor, "typed-replacement");
+  assert.ok(typedDelta.events.some(e => e.client_message_id === typed.client_message_id));
   assert.equal((await reconcileMessages(thread.id, typed.message_id, { home: root }, { discover: () => discoverRuntime(root) }))[0].verification.status, "stored");
   assert.equal((await listInstructions(thread.id, { home: root, all: true })).instructions.find(e => e.id === journal.id).instruction_status, "superseded");
   await assert.rejects(promisify(execFile)(process.execPath, [...cliArgs, "send", thread.id, "must not send stale review", "--based-on", fresh.cursor, "--json"], cliOptions), error => {
     const response = JSON.parse(error.stdout);
     assert.equal(response.error.code, "STALE_OBSERVATION"); assert.equal(response.error.sent, false); return true;
   });
+
+  await modelTool("exec_command", { cmd: "sleep 2", yield_time_ms: 1000 });
+  const runningItem = await until(() => desktop.notifications.find(m => m.method === "item/started" && m.params.turnId === turn.id && m.params.item?.type === "commandExecution"), "running command");
+  // Some builds publish command history only at completion, even though the
+  // Desktop has received item/started. Both readers observe persisted history.
+  const runningRead = await observeThread(thread.id, {}, { discover: () => discoverRuntime(root) });
+  const historyHadRunning = runningRead.running_commands.some(e => e.id === runningItem.params.item.id);
+  await until(() => desktop.notifications.find(m => m.method === "item/completed" && m.params.item?.id === runningItem.params.item.id), "command completion");
+  await until(async () => (await cli.request("thread/items/list", { threadId: thread.id, sortDirection: "desc", limit: 50 })).data.some(r => r.item.id === runningItem.params.item.id && r.item.status === "completed"), "command completion persisted");
+  const completedRead = await measureChangedRead(thread.id, runningRead.cursor, "command-completion");
+  assert.ok(completedRead.events.some(e => e.id === runningItem.params.item.id && e.change === (historyHadRunning ? "updated" : "added") && e.status === "completed"));
+  console.log(JSON.stringify({ checkpoint: "changed-read-performance", result: "PASS", samples: deltaTimings, max_ms: Math.max(...deltaTimings.map(s => s.ms)), threshold_ms: 1000, includes_cli_startup: true, history_had_running_command: historyHadRunning }));
 
   // Exactly the command a Monitor consumer runs, including backlog pagination
   // and cancellation while the task's model call is still in progress.
@@ -240,6 +270,7 @@ try {
   createInterface({ input: monitor.stdout }).on("line", line => monitorLines.push(line));
   monitor.stderr.on("data", data => { monitorErrors += data; });
   await until(() => monitorLines.map(line => JSON.parse(line)).find(line => line.data?.events.some(e => e.client_message_id === typed.client_message_id)), "Monitor typed message");
+  await until(() => monitorLines.map(line => JSON.parse(line)).find(line => line.data?.events.some(e => e.id === runningItem.params.item.id && e.status === "completed")), "Monitor completed command");
   assert.ok(monitorLines.every(line => JSON.parse(line).ok === true));
   const lineCount = monitorLines.length;
   await delay(600); assert.equal(monitorLines.length, lineCount, "Unchanged task does not produce Monitor heartbeats");
@@ -276,7 +307,12 @@ try {
   const question = await until(() => desktop.requests.find(m => m.method === "item/tool/requestUserInput" && m.params.turnId === questionTurn.turn.id), "Desktop question");
   desktop.respond(question, { answers: { probe: { answers: ["Yes"] } } });
   await desktop.request("turn/interrupt", { threadId: thread.id, turnId: questionTurn.turn.id });
+  await idle(thread.id);
   console.log(JSON.stringify({ checkpoint: "CP4-protocol-question", result: "PASS", desktop_question_roundtrip: true }));
+  const beforeRollback = await observeThread(thread.id, {}, { discover: () => discoverRuntime(root) });
+  await desktop.request("thread/revert", { threadId: thread.id, beforeTurnId: questionTurn.turn.id });
+  await assert.rejects(observeThread(thread.id, { since: beforeRollback.cursor }, { discover: () => discoverRuntime(root) }), { code: "STALE_CURSOR" });
+  console.log(JSON.stringify({ checkpoint: "paged-read-rollback", result: "PASS", stale_cursor_rejected: true }));
   // Kill only the server launched by this isolated probe. Desktop stdin remains
   // open, so the wrapper must notice the broken connection and clean up itself.
   const { state } = await discoverRuntime(root);

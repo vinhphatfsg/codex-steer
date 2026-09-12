@@ -51,7 +51,7 @@ test("Monitor stops on stale history or a failed consumer without silently rebas
   thread.turns[0].items[0].text = "rewritten";
   const fake = server(thread, async () => assert.fail("must not poll after failure"));
   await assert.rejects(streamThread(ID, { since }, async () => assert.fail("no events"), fake.deps), { code: "STALE_CURSOR" });
-  assert.equal(fake.isClosed(), true); assert.equal(fake.calls.length, 1);
+  assert.equal(fake.isClosed(), true); assert.equal(fake.calls.length, 2); // Metadata, then the legacy full read; no retry.
   thread.turns[0].items[0].text = "a"; thread.turns[0].items.push(msg("c"));
   await assert.rejects(streamThread(ID, { since }, async () => { throw new Error("consumer failed"); }, fake.deps), /consumer failed/);
 });

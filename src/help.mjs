@@ -1,4 +1,4 @@
-export const VERSION = "0.9.0";
+export const VERSION = "0.10.0";
 
 export const topics = {
   monitor: {
@@ -59,26 +59,34 @@ export const topics = {
   read: {
     title: "直近の発言・コマンド・変更ファイルを読む",
     when: "レビューや追加指示を送る前、または前回の観測から何が変わったかを確認するとき。",
-    usage: ["read <THREAD> [--since CURSOR] [--limit N] [--max-chars N] [--include-output]"],
+    usage: ["read <THREAD> [--since CURSOR] [--limit N] [--max-chars N] [--include-output] [--full-history]"],
     returns: "events、状態、次回用cursor。初回は直近50件。--sinceは未取得の新規・更新項目を古い順に返します。has_moreなら返されたcursorで続けて読めます。",
-    examples: ["codex-steer read <THREAD> --json", "codex-steer read <THREAD> --since <CURSOR> --include-output --json"],
-    notes: ["--limitは1〜1000（既定50）、--max-charsは100〜20000（既定2000）。", "内部推論は出力しません。コマンド出力・差分本文は --include-output 時のみ表示します。", "観測でタスクを再開・送信・前面化しません。履歴の書き換えを検出したcursorは拒否するので、--sinceを外して読み直してください。"],
+    examples: ["codex-steer read <THREAD> --json", "codex-steer read <THREAD> --since <CURSOR> --include-output --json", "codex-steer read <THREAD> --full-history --since <V1-CURSOR> --json"],
+    notes: ["--limitは1〜1000（既定50）、--max-charsは100〜20000（既定2000）。",
+      "通常は直近のページと、追跡中の実行項目だけを取得します。長文タスクでも毎回の全取得を避けられます。初回だけは実行中ターンを調べ、表示範囲より前のコマンドも追跡します。",
+      "観測対象は履歴APIに現れた項目です。Codexの版によっては実行開始通知の後、コマンドが完了してから履歴に現れる場合があります。",
+      "has_more:trueならchanged:falseでも、返されたcursorで続きを読んでください。読み終えてから判断・送信します。running_commands_complete:falseは差分の読み残しがある状態です。",
+      "history_scope=tail-and-tracked-itemsはターン列・末尾・追跡項目の確認です。過去全文の書き換え検出には --full-history を使います（表示件数は同じ、取得は遅くなります）。古い形式のタスクも全取得になります。",
+      "旧v1 cursorの未読差分を継続するには --full-history。高速方式に切り替える場合は --since を外して現状をレビューし、新しいcursorを保存します。v1とv2は混在できません。",
+      "omitted_older_events:nullは省略した古い項目の件数が未集計です。件数のための全取得は行いません。",
+      "内部推論は出力しません。コマンド出力・差分本文は --include-output 時のみ表示します。",
+      "観測でタスクを再開・送信・前面化しません。巻き戻しや追跡位置の不一致を検出したcursorは拒否するので、原因を確認してから --since を外して読み直してください。"],
   },
   status: {
     title: "実行中・停止中・承認待ちを確認する",
     when: "今ステアできるか、新規ターンが必要か、ユーザーの応答が必要かを判断するとき。",
-    usage: ["status <THREAD>"],
+    usage: ["status <THREAD> [--full-history]"],
     returns: "status、active_turn_id、attention、実行中コマンド、cursor。状態が取得できない場合はunknownとします。",
     examples: ["codex-steer status <THREAD> --json"],
-    notes: ["notLoadedは保存済みタスクが未ロードという意味です。statusはロードしません。", "承認や質問には回答しません。attentionはApp Serverが報告した状態で、本文から推測しません。"],
+    notes: ["readと同じページ取得方式を使い、返したcursorから read --since へ進めます。初回の実行中コマンド探索と --full-history の詳細は help read へ。", "notLoadedは保存済みタスクが未ロードという意味です。statusはロードしません。", "承認や質問には回答しません。attentionはApp Serverが報告した状態で、本文から推測しません。"],
   },
   watch: {
     title: "変化・完了・ユーザー対応待ちまで待つ",
     when: "同じログを繰り返し読まず、次のレビューが必要なタイミングを待ちたいとき。",
-    usage: ["watch <THREAD> [--since CURSOR] [--until change|idle|attention] [--timeout-ms N] [--poll-ms N] [--limit N] [--max-chars N] [--include-output]", "watch <THREAD> --stream [--since CURSOR] [--poll-ms N] [--limit N] [--max-chars N] [--include-output]"],
+    usage: ["watch <THREAD> [--since CURSOR] [--until change|idle|attention] [--timeout-ms N] [--poll-ms N] [--limit N] [--max-chars N] [--include-output] [--full-history]", "watch <THREAD> --stream [--since CURSOR] [--poll-ms N] [--limit N] [--max-chars N] [--include-output] [--full-history]"],
     returns: "通常は条件成立または時間切れで1回返します（reason、timed_out、events、cursor）。--streamは変化ごとに1行のJSONを出し続けます。",
     examples: ["codex-steer watch <THREAD> --since <CURSOR> --json", "codex-steer watch <THREAD> --until idle --timeout-ms 60000 --json"],
-    notes: ["既定はchange、30秒待ち、1秒間隔。timeoutは0〜60000ms、pollは250〜10000ms。", "--sinceなしのchangeは現在を基準に次の変化を待ちます。idle/attentionは既に成立していればすぐ返します。", "--streamは中断までJSON Linesで変化だけを通知します。--until/--timeout-msと併用不可。Claude Code向けの手順はhelp monitorへ。", "読み取り専用のポーリングです。自動送信・再開・承認回答・常駐登録は行いません。"],
+    notes: ["既定はchange、30秒待ち、1秒間隔。timeoutは0〜60000ms、pollは250〜10000ms。", "readと同じ差分取得を使います。--full-history は毎回の全取得になるため、通常の監視は既定の方式を使ってください。旧cursorの移行と確認範囲は help read へ。", "--sinceなしのchangeは現在を基準に次の変化を待ちます。idle/attentionは既に成立していればすぐ返します。", "--streamは中断までJSON Linesで変化だけを通知します。--until/--timeout-msと併用不可。Claude Code向けの手順はhelp monitorへ。", "読み取り専用のポーリングです。自動送信・再開・承認回答・常駐登録は行いません。"],
   },
   send: {
     title: "実行中タスクに方針やレビューを伝える",
@@ -86,7 +94,7 @@ export const topics = {
     usage: ["send <THREAD> <MESSAGE...> [--new-turn] [--dry-run] [--backend app-server|ui]", "send <THREAD> <MESSAGE...> [--source NAME] [--kind decision|review|hypothesis|suggestion] [--evidence FILE-OR-URL ...] [--based-on CURSOR] [--supersedes MESSAGE-ID] [--expires-at ISO-TIMESTAMP] [--checkpoint ID]", "<THREAD> <MESSAGE...> [sendと同じオプション]"],
     returns: "acceptedはサーバーの受付です。処理完了や画面への表示を保証するものではありません。",
     examples: ["codex-steer send <THREAD> '失敗したテストの原因を先に確認してください' --dry-run --json", "codex-steer send <THREAD> '競合が原因か確認してください' --source claude --kind hypothesis --evidence results.xml --based-on <CURSOR> --json", "codex-steer send <THREAD> '続けてください' --new-turn --json", "printf '%s\\n' '理由' '変更方針' | codex-steer send <THREAD> -"],
-    notes: ["MESSAGEに - を指定すると標準入力を読みます。本文中のオプション名は -- の後に置いてください。", "--kindはdecision=ユーザー決定の伝達、review=レビュー、hypothesis=未確定の仮説、suggestion=任意提案です。指定時は送信者・種類・根拠を本文の前に表示します。無指定なら従来の本文をそのまま送ります。", "decisionは送信者の分類で、新しいユーザー承認を作りません。元のユーザー指示を根拠として示してください。", "--based-onはread/statusのcursor。新しいユーザー入力やターン変更があれば送信を止めます。通常の進捗報告だけでは止めません。根拠ファイルも送信直前にハッシュ照合します。URLは参照のみです。", "dry-runではファイル根拠を読めますが、接続・鮮度確認・保存・送信は行いません。鮮度確認と送信の間の変更を原子的には防げません。", "既定はapp-server。UI操作は --backend ui を明示した場合だけです。--keep-focusと--wait-msはUI専用です。", "unknownは受付未確認です。history checkで確認し、自動再送しないでください。"],
+    notes: ["MESSAGEに - を指定すると標準入力を読みます。本文中のオプション名は -- の後に置いてください。", "--kindはdecision=ユーザー決定の伝達、review=レビュー、hypothesis=未確定の仮説、suggestion=任意提案です。指定時は送信者・種類・根拠を本文の前に表示します。無指定なら従来の本文をそのまま送ります。", "decisionは送信者の分類で、新しいユーザー承認を作りません。元のユーザー指示を根拠として示してください。", "--based-onはread/statusのcursor。has_more:trueなら読み終えてから指定します。観測位置以降の新しいユーザー入力やターン変更があれば送信を止めます。通常の進捗報告だけでは止めません。根拠ファイルも送信直前にハッシュ照合します。URLは参照のみです。", "dry-runではファイル根拠を読めますが、接続・鮮度確認・保存・送信は行いません。鮮度確認と送信の間の変更を原子的には防げません。", "既定はapp-server。UI操作は --backend ui を明示した場合だけです。--keep-focusと--wait-msはUI専用です。", "unknownは受付未確認です。history checkで確認し、自動再送しないでください。"],
   },
   doctor: { title: "接続と起動条件を診断する", when: "接続できないとき、または初回設定後。", usage: ["doctor [--backend app-server|ui]"], returns: "readyと各チェック結果。", examples: ["codex-steer doctor --json"], notes: ["Desktopの再起動や設定変更は行いません。readyは接続条件の確認です。"] },
   desktop: { title: "共有接続を有効にしてDesktopを起動する", when: "現在の作業を終え、Desktopを終了した後の起動時。", usage: ["desktop start [--dry-run]"], returns: "起動結果。", examples: ["codex-steer desktop start --dry-run --json", "codex-steer desktop start"], notes: ["起動中のDesktopは終了させません。通常起動への復旧は、終了後にDock等から開き直します。"] },

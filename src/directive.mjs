@@ -1,6 +1,7 @@
 import { collectEvidence, verifyEvidence } from "./evidence.mjs";
 import { decodeCursor, threadSnapshot, fetchThread } from "./observe.mjs";
 import { getCheckpoint, verifyCheckpoint } from "./checkpoint.mjs";
+import { verifyPagedFreshness } from "./paged-read.mjs";
 
 export const kindLabels = { decision: "ユーザー決定の伝達", review: "レビュー", hypothesis: "仮説（未確定）", suggestion: "任意提案" };
 
@@ -25,9 +26,12 @@ export async function prepareDirective(threadId, body, options, id, storage = {}
   return { metadata, wireText: lines.join("\n") + "\n\n" + body, async beforeSend(thread, client) {
     if (expiresAt && Date.parse(expiresAt) <= Date.now()) throw Object.assign(new Error("Directive expired before sending."), { code: "EXPIRED_DIRECTIVE" });
     if (observed) {
-      if (thread.historyMode === "paginated" || thread.turns?.some(t => t.itemsView && t.itemsView !== "full")) thread = await fetchThread(client, threadId);
-      const current = threadSnapshot(thread);
-      if (current.user_revision !== observed.user_revision || current.state.active_turn_id !== observed.active_turn_id) throw Object.assign(new Error("New user input or a different turn was observed. Read the task again before sending."), { code: "STALE_OBSERVATION" });
+      if (observed.v === 2) await verifyPagedFreshness(client, threadId, basedOn);
+      else {
+        if (thread.turns?.some(t => t.itemsView && t.itemsView !== "full") || !thread.turns?.length) thread = await fetchThread(client, threadId);
+        const current = threadSnapshot(thread);
+        if (current.user_revision !== observed.user_revision || current.state.active_turn_id !== observed.active_turn_id) throw Object.assign(new Error("New user input or a different turn was observed. Read the task again before sending."), { code: "STALE_OBSERVATION" });
+      }
     }
     await verifyEvidence(refs);
     if (checkpoint && !(await verifyCheckpoint(threadId, checkpoint, storage)).valid) throw Object.assign(new Error("Checkpoint is no longer valid. Verify the inputs and results before sending."), { code: "STALE_CHECKPOINT" });

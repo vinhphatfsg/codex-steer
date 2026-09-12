@@ -62,6 +62,30 @@ test("watch times out quietly, surfaces approval flags, and closes on errors", a
   assert.equal(closed, 3);
 });
 
+test("watch timeout preserves unread changes without an additional history fetch", async () => {
+  const initial = thread([msg("a")]), since = readSnapshot(initial).cursor;
+  const current = thread([msg("a"), msg("b")]); let reads = 0;
+  const result = await observeThread(ID, { watch: true, since, until: "idle", timeoutMs: 0 }, {
+    discover: async () => ({ paths: { socket: "unused" } }),
+    connect: async () => ({ close() {}, async request() { reads++; return { thread: current }; } }),
+  });
+  assert.equal(result.timed_out, true); assert.equal(result.changed, true);
+  assert.deepEqual(result.events.map(e => e.id), ["b"]);
+  assert.equal(reads, 2, "One metadata read and one legacy history read; no extra timeout read");
+});
+
+test("a read keeps its connection open until asynchronous history retrieval finishes", async () => {
+  let closed = false;
+  const result = await observeThread(ID, {}, {
+    discover: async () => ({ paths: { socket: "unused" } }),
+    connect: async () => ({ close() { closed = true; }, async request() {
+      await new Promise(resolve => setImmediate(resolve));
+      assert.equal(closed, false); return { thread: thread([msg("a")]) };
+    } }),
+  });
+  assert.equal(closed, true); assert.ok(result.events.some(e => e.id === "a"));
+});
+
 test("paginated history is hydrated without subscription; incomplete pages fail closed", async () => {
   const base = { ...thread([]), historyMode: "paginated" };
   const methods = [];

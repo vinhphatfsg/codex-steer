@@ -1,0 +1,589 @@
+{
+  "baseline": {
+    "date": "2026-09-12T01:30:11.185Z",
+    "revision": "2833694",
+    "node": "v25.1.0",
+    "cli": [
+      {
+        "label": "cli read",
+        "sample": 1,
+        "elapsed_ms": 10087.02,
+        "output_bytes": 29645,
+        "events": 50,
+        "omitted": 8980
+      },
+      {
+        "label": "cli read",
+        "sample": 2,
+        "elapsed_ms": 10031.62,
+        "output_bytes": 29645,
+        "events": 50,
+        "omitted": 8980
+      },
+      {
+        "label": "cli read",
+        "sample": 3,
+        "elapsed_ms": 10251.8,
+        "output_bytes": 29645,
+        "events": 50,
+        "omitted": 8980
+      },
+      {
+        "label": "CLI --since unchanged",
+        "elapsed_ms": 10509.73,
+        "output_bytes": 946,
+        "events": 0,
+        "changed": false
+      },
+      {
+        "label": "CLI status",
+        "elapsed_ms": 10995.46,
+        "output_bytes": 938,
+        "changed": true
+      }
+    ],
+    "full_history_received_bytes": 124466110
+  },
+  "improved": {
+    "date": "2026-09-12T02:12:56.153Z",
+    "thread_id": "01a070ad-2740-7382-8fd8-e9f6f013f92d",
+    "version": "0.10.0",
+    "node": "v25.1.0",
+    "initial": {
+      "ms": 65.66,
+      "below_threshold": true,
+      "output_bytes": 33742,
+      "events": 50,
+      "changed": true,
+      "has_more": false
+    },
+    "samples": [
+      {
+        "ms": 58.49,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 63.27,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 63.65,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 63.44,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 60.56,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 60.46,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 62.54,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 57.57,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 59.89,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 59.23,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 59.71,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 59.23,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 60.8,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 60.63,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 59.62,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 58.6,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 61.22,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 60.08,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 57.42,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 56.16,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 61.68,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 57.77,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 59.32,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 59.1,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 57.99,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 58.64,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 59.64,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 59.59,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 62.07,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 58.77,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 57.3,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 57.85,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 59.34,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 59.29,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 59.41,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 60.17,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 60.76,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 56.85,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 59.6,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 58.38,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 57.04,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 59.46,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 57.53,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 59.72,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 58.08,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 57.51,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 77.97,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 58.96,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 61.27,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      },
+      {
+        "ms": 59.47,
+        "below_threshold": true,
+        "output_bytes": 5603,
+        "events": 0,
+        "changed": false,
+        "has_more": false
+      }
+    ],
+    "summary": {
+      "count": 50,
+      "min_ms": 56.16,
+      "median_ms": 59.44,
+      "p95_ms": 63.44,
+      "max_ms": 77.97,
+      "threshold_ms": 1000,
+      "passed": true
+    }
+  },
+  "rpc_profile": {
+    "date": "2026-09-12T02:13:09.988Z",
+    "node": "v25.1.0",
+    "thread_id": "01a070ad-2740-7382-8fd8-e9f6f013f92d",
+    "records": [
+      {
+        "label": "initial",
+        "api_total_ms": 14.42,
+        "received_bytes": 172146,
+        "frames": 5,
+        "events": 50,
+        "status": "notLoaded",
+        "has_more": false,
+        "requests": [
+          {
+            "method": "thread/read",
+            "ms": 0.88,
+            "received_bytes": 2616
+          },
+          {
+            "method": "thread/turns/list",
+            "ms": 1.39,
+            "received_bytes": 8108,
+            "items_view": "notLoaded",
+            "limit": 100,
+            "returned": 42
+          },
+          {
+            "method": "thread/items/list",
+            "ms": 1.55,
+            "received_bytes": 63767,
+            "limit": 50,
+            "returned": 50
+          },
+          {
+            "method": "thread/items/list",
+            "ms": 1.96,
+            "received_bytes": 97655,
+            "limit": 50,
+            "returned": 50
+          }
+        ]
+      },
+      {
+        "label": "unchanged",
+        "api_total_ms": 4.83,
+        "received_bytes": 11797,
+        "frames": 4,
+        "events": 0,
+        "status": "notLoaded",
+        "has_more": false,
+        "requests": [
+          {
+            "method": "thread/read",
+            "ms": 0.48,
+            "received_bytes": 2616
+          },
+          {
+            "method": "thread/turns/list",
+            "ms": 0.85,
+            "received_bytes": 8108,
+            "items_view": "notLoaded",
+            "limit": 100,
+            "returned": 42
+          },
+          {
+            "method": "thread/items/list",
+            "ms": 0.98,
+            "received_bytes": 1073,
+            "limit": 51,
+            "returned": 1
+          }
+        ]
+      }
+    ]
+  },
+  "changed_read_fixture": {
+    "cli": "codex-cli 0.153.4",
+    "includes_cli_startup": true,
+    "threshold_ms": 1000,
+    "samples": [
+      {
+        "label": "first-user-input",
+        "ms": 58.25,
+        "events": 3
+      },
+      {
+        "label": "second-user-input",
+        "ms": 60.97,
+        "events": 2
+      },
+      {
+        "label": "typed-replacement",
+        "ms": 58.62,
+        "events": 2
+      },
+      {
+        "label": "command-completion",
+        "ms": 59.77,
+        "events": 1
+      }
+    ],
+    "max_ms": 60.97,
+    "passed": true,
+    "history_had_running_command": false,
+    "checks": [
+      "message identities",
+      "stale review rejected",
+      "Monitor backlog pages",
+      "silent when unchanged",
+      "cancellation",
+      "approval ownership",
+      "user input question",
+      "revert rejects stale cursor",
+      "server crash cleanup"
+    ]
+  }
+}
